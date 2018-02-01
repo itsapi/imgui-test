@@ -30,3 +30,10 @@
 *.exe
 *.out
 *.app
+
+.floo
+.flooignore
+
+.listener_PID
+
+imgui.ini

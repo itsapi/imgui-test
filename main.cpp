@@ -60,6 +60,8 @@ int main(int, char**)
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    GameState game_state = {};
+
     // Main loop
     bool done = false;
     while (!done)
@@ -82,11 +84,13 @@ int main(int, char**)
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        main_loop();
+        main_loop(&game_state);
 
         ImGui::Render();
         SDL_GL_SwapWindow(window);
     }
+
+    shutdown(&game_state);
 
     // Cleanup
     ImGui_ImplSdlGL3_Shutdown();

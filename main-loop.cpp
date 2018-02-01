@@ -8,36 +8,98 @@
 
 
 void
-main_loop()
+main_loop(GameState *game_state)
 {
-  static bool init = false;
-  static float fov = 45.0f;
-  static float rotate_x_deg = 0;
-  static float rotate_y_deg = 0;
-  static float rotate_z_deg = 0;
+  static const int n_indices = 36;
 
   static vec3 colours[] = {
-    {1.0f, 0.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f},
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 0.0f},
-    {1.0f, 1.0f, 1.0f},
-    {0.5f, 0.5f, 0.5f},
+    {0.15f, 0.7f, 0.1f},
+    {0.2f, 0.1f, 0.1f}
   };
+
+  if (!game_state->init)
+  {
+    game_state->fov = 45.0f;
+    game_state->rotate_x_deg = 0;
+    game_state->rotate_y_deg = 0;
+    game_state->rotate_z_deg = 0;
+    game_state->init = true;
+
+    // Enable depth test
+    glEnable(GL_DEPTH_TEST);
+    // Accept fragment if it closer to the camera than the former one
+    glDepthFunc(GL_LESS);
+
+    GLuint vertex_array_id;
+    glGenVertexArrays(1, &vertex_array_id);
+    glBindVertexArray(vertex_array_id);
+
+    // Create and compile our GLSL program from the shaders
+    game_state->program_id = LoadShaders( "TransformVertexShader.vertexshader", "ColorFragmentShader.fragmentshader" );
+
+    // Get a handle for our "MVP" uniform
+    game_state->vp_matrix_id = glGetUniformLocation(game_state->program_id, "VP");
+    game_state->m_matrix_id = glGetUniformLocation(game_state->program_id, "M");
+
+    // Our vertices. Tree consecutive floats give a 3D vertex; Three consecutive vertices give a triangle.
+    // A cube has 6 faces with 2 triangles each, so this makes 6*2=12 triangles, and 12*3 vertices
+    const GLfloat g_vertex_buffer_data[] = {
+       1.0f,  1.0f,  1.0f,
+       1.0f,  1.0f, -1.0f,
+      -1.0f,  1.0f, -1.0f,
+      -1.0f,  1.0f,  1.0f,
+
+       1.0f, -1.0f,  1.0f,
+       1.0f, -1.0f, -1.0f,
+      -1.0f, -1.0f, -1.0f,
+      -1.0f, -1.0f,  1.0f,
+
+    };
+
+    const GLubyte index_buffer_data[] = {
+      0, 1, 2,
+      0, 2, 3,
+
+      0, 1, 4,
+      4, 5, 1,
+
+      1, 2, 5,
+      5, 6, 2,
+
+      2, 3, 6,
+      6, 7, 3,
+
+      7, 5, 4,
+      5, 7, 6,
+
+      3, 7, 4,
+      3, 4, 0
+    };
+
+    glGenBuffers(1, &game_state->vertex_buffer);
+    glGenBuffers(1, &game_state->index_buffer);
+    glGenBuffers(1, &game_state->color_buffer);
+
+    glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
+  }
 
   ImGuiIO& io = ImGui::GetIO();
   // ImGui::ShowDemoWindow();
 
   if (ImGui::Begin("Render parameters"))
   {
-    ImGui::DragFloat("FOV", &fov, 1, 1, 180);
-    ImGui::DragFloat("Rotate X", &rotate_x_deg, 1, -360, 360);
-    ImGui::DragFloat("Rotate Y", &rotate_y_deg, 1, -360, 360);
-    ImGui::DragFloat("Rotate Z", &rotate_z_deg, 1, -360, 360);
+    ImGui::DragFloat("FOV", &game_state->fov, 1, 1, 180);
+    ImGui::DragFloat("Rotate X", &game_state->rotate_x_deg, 1, -360, 360);
+    ImGui::DragFloat("Rotate Y", &game_state->rotate_y_deg, 1, -360, 360);
+    ImGui::DragFloat("Rotate Z", &game_state->rotate_z_deg, 1, -360, 360);
 
     static int colour_picker_n = 0;
 
-    for (int colour_n = 0; colour_n < 6; ++colour_n)
+    for (int colour_n = 0; colour_n < 2; ++colour_n)
     {
       ImGui::PushID(colour_n);
       vec4 c = {colours[colour_n].x, colours[colour_n].y, colours[colour_n].z, 0.0f};
@@ -59,144 +121,54 @@ main_loop()
     }
   }
 
-  static GLuint programID;
-  static GLuint MatrixID;
-  static mat4x4 MVP;
-  static GLuint vertexbuffer;
-  static GLuint colorbuffer;
-
-  if (!init)
-  {
-    init = true;
-
-    // Enable depth test
-    glEnable(GL_DEPTH_TEST);
-    // Accept fragment if it closer to the camera than the former one
-    glDepthFunc(GL_LESS);
-
-    GLuint VertexArrayID;
-    glGenVertexArrays(1, &VertexArrayID);
-    glBindVertexArray(VertexArrayID);
-
-    // Create and compile our GLSL program from the shaders
-    programID = LoadShaders( "TransformVertexShader.vertexshader", "ColorFragmentShader.fragmentshader" );
-
-  }
-
-  // Get a handle for our "MVP" uniform
-  MatrixID = glGetUniformLocation(programID, "MVP");
-
   // Projection matrix : 45� Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
-  mat4x4 Projection;
-  mat4x4Perspective(Projection, (fov*(M_PI/180.0f)), io.DisplaySize.x / io.DisplaySize.y, 0.1f, 100.0f);
+  mat4x4 projection;
+  mat4x4Perspective(projection, (game_state->fov*(M_PI/180.0f)), io.DisplaySize.x / io.DisplaySize.y, 0.1f, 100.0f);
   // Model matrix : an identity matrix (model will be at the origin)
-  mat4x4 Model;
-  mat4x4Identity(Model);
-  mat4x4RotateX(Model, rotate_x_deg*(M_PI/180.0f));
-  mat4x4RotateY(Model, rotate_y_deg*(M_PI/180.0f));
-  mat4x4RotateZ(Model, rotate_z_deg*(M_PI/180.0f));
+  mat4x4 model;
+  mat4x4Identity(model);
+  mat4x4RotateX(model, game_state->rotate_x_deg*(M_PI/180.0f));
+  mat4x4RotateY(model, game_state->rotate_y_deg*(M_PI/180.0f));
+  mat4x4RotateZ(model, game_state->rotate_z_deg*(M_PI/180.0f));
   // Camera matrix
-  mat4x4 View;
-  mat4x4LookAt(View, (vec3){4.0f,3.0f,-3.0f}, // Camera is at (4,3,-3), in World Space
+  mat4x4 view;
+  mat4x4LookAt(view, (vec3){50.0f,15.0f,-15.0f}, // Camera is at (4,3,-3), in World Space
                      (vec3){0.0,0,0.0}, // and looks at the origin
                      (vec3){0.0,1.0,0.0}  // Head is up (set to 0,-1,0 to look upside-down)
   );
 
   // Our ModelViewProjection : multiplication of our 3 matrices
-  mat4x4 VP;
-  mat4x4MultiplyMatrix(VP, View, Projection); // Remember, matrix multiplication is the other way around
-  mat4x4MultiplyMatrix(MVP, Model, VP); // Remember, matrix multiplication is the other way around
-
-  const int n_vertices = 36;
-
-  // Our vertices. Tree consecutive floats give a 3D vertex; Three consecutive vertices give a triangle.
-  // A cube has 6 faces with 2 triangles each, so this makes 6*2=12 triangles, and 12*3 vertices
-  static const GLfloat g_vertex_buffer_data[n_vertices*3] = {
-    -1.0f,-1.0f,-1.0f,
-    -1.0f,-1.0f, 1.0f,
-    -1.0f, 1.0f, 1.0f,
-
-    -1.0f,-1.0f,-1.0f,
-    -1.0f, 1.0f, 1.0f,
-    -1.0f, 1.0f,-1.0f,
-
-
-     1.0f, 1.0f,-1.0f,
-    -1.0f,-1.0f,-1.0f,
-    -1.0f, 1.0f,-1.0f,
-
-     1.0f, 1.0f,-1.0f,
-     1.0f,-1.0f,-1.0f,
-    -1.0f,-1.0f,-1.0f,
-
-
-     1.0f,-1.0f, 1.0f,
-    -1.0f,-1.0f,-1.0f,
-     1.0f,-1.0f,-1.0f,
-
-     1.0f,-1.0f, 1.0f,
-    -1.0f,-1.0f, 1.0f,
-    -1.0f,-1.0f,-1.0f,
-
-
-    -1.0f, 1.0f, 1.0f,
-    -1.0f,-1.0f, 1.0f,
-     1.0f,-1.0f, 1.0f,
-
-     1.0f, 1.0f, 1.0f,
-    -1.0f, 1.0f, 1.0f,
-     1.0f,-1.0f, 1.0f,
-
-
-     1.0f, 1.0f, 1.0f,
-     1.0f,-1.0f,-1.0f,
-     1.0f, 1.0f,-1.0f,
-
-     1.0f,-1.0f,-1.0f,
-     1.0f, 1.0f, 1.0f,
-     1.0f,-1.0f, 1.0f,
-
-
-     1.0f, 1.0f, 1.0f,
-     1.0f, 1.0f,-1.0f,
-    -1.0f, 1.0f,-1.0f,
-
-     1.0f, 1.0f, 1.0f,
-    -1.0f, 1.0f,-1.0f,
-    -1.0f, 1.0f, 1.0f
-  };
+  mat4x4 view_projection;
+  mat4x4MultiplyMatrix(view_projection, view, projection); // Remember, matrix multiplication is the other way around
+  mat4x4MultiplyMatrix(game_state->model_view_projection, model, view_projection); // Remember, matrix multiplication is the other way around
 
   // One color for each vertex. They were generated randomly.
-  GLfloat g_color_buffer_data[n_vertices*3];
+  int n_colours = 8;
+  GLfloat g_color_buffer_data[n_colours*3];
 
-  for (int colour_n = 0; colour_n < n_vertices; ++colour_n)
+  for (int colour_n = 0; colour_n < n_colours; ++colour_n)
   {
-    g_color_buffer_data[(colour_n*3)+0] = colours[colour_n/6].x;
-    g_color_buffer_data[(colour_n*3)+1] = colours[colour_n/6].y;
-    g_color_buffer_data[(colour_n*3)+2] = colours[colour_n/6].z;
+    g_color_buffer_data[(colour_n*3)+0] = colours[colour_n/4].x;
+    g_color_buffer_data[(colour_n*3)+1] = colours[colour_n/4].y;
+    g_color_buffer_data[(colour_n*3)+2] = colours[colour_n/4].z;
   }
 
-  glGenBuffers(1, &vertexbuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
-
-  glGenBuffers(1, &colorbuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->color_buffer);
   glBufferData(GL_ARRAY_BUFFER, sizeof(g_color_buffer_data), g_color_buffer_data, GL_STATIC_DRAW);
 
   // Clear the screen
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   // Use our shader
-  glUseProgram(programID);
+  glUseProgram(game_state->program_id);
 
   // Send our transformation to the currently bound shader,
   // in the "MVP" uniform
-  glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
+  glUniformMatrix4fv(game_state->vp_matrix_id, 1, GL_FALSE, &game_state->model_view_projection[0][0]);
 
   // 1rst attribute buffer : vertices
   glEnableVertexAttribArray(0);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
   glVertexAttribPointer(
     0,                  // attribute. No particular reason for 0, but must match the layout in the shader.
     3,                  // size
@@ -208,7 +180,7 @@ main_loop()
 
   // 2nd attribute buffer : colors
   glEnableVertexAttribArray(1);
-  glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->color_buffer);
   glVertexAttribPointer(
     1,                                // attribute. No particular reason for 1, but must match the layout in the shader.
     3,                                // size
@@ -219,15 +191,38 @@ main_loop()
   );
 
   // Draw the triangle !
-  glDrawArrays(GL_TRIANGLES, 0, 12*3); // 12*3 indices starting at 0 -> 12 triangles
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
+
+  float s = 1;
+  vec3 translation;
+  for (translation.x = -20;
+       translation.x <= 20;
+       translation.x += 2)
+  for (translation.z = -20;
+       translation.z <= 20;
+       translation.z += 2)
+  {
+    // Model matrix : an identity matrix (model will be at the origin)
+    mat4x4 model;
+    mat4x4Identity(model);
+    mat4x4Translate(model, translation);
+    mat4x4Translate(model, {0, sin((translation.x + translation.z) * M_PI / 10.0), 0});
+    glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &model[0][0]);
+    glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
+  }
 
   glDisableVertexAttribArray(0);
   glDisableVertexAttribArray(1);
 
-
-  // Cleanup VBO and shader
-  glDeleteBuffers(1, &vertexbuffer);
-  glDeleteBuffers(1, &colorbuffer);
-
   ImGui::End();
+}
+
+
+void
+shutdown(GameState *game_state)
+{
+  // Cleanup VBO and shader
+  glDeleteBuffers(1, &game_state->vertex_buffer);
+  glDeleteBuffers(1, &game_state->index_buffer);
+  glDeleteBuffers(1, &game_state->color_buffer);
 }
