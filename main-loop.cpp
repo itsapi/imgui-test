@@ -23,6 +23,8 @@ main_loop(GameState *game_state)
     game_state->rotate_x_deg = 0;
     game_state->rotate_y_deg = 0;
     game_state->rotate_z_deg = 0;
+    game_state->camera_position = {50.0f,15.0f,-15.0f};
+
     game_state->init = true;
 
     // Enable depth test
@@ -87,6 +89,38 @@ main_loop(GameState *game_state)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
   }
 
+  vec3 camera_acceleration = {};
+  if (ImGui::IsKeyDown(SDL_SCANCODE_LEFT))
+  {
+    camera_acceleration.x += 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
+  {
+    camera_acceleration.x -= 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_UP))
+  {
+    camera_acceleration.z += 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_DOWN))
+  {
+    camera_acceleration.z -= 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT))
+  {
+    camera_acceleration.y += 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL))
+  {
+    camera_acceleration.y -= 1;
+  }
+
+  camera_acceleration = vec3Multiply(camera_acceleration, 0.2);
+  game_state->camera_velocity = vec3Add(game_state->camera_velocity, camera_acceleration);
+  game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
+
+  game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
+
   ImGuiIO& io = ImGui::GetIO();
   // ImGui::ShowDemoWindow();
 
@@ -132,7 +166,7 @@ main_loop(GameState *game_state)
   mat4x4RotateZ(model, game_state->rotate_z_deg*(M_PI/180.0f));
   // Camera matrix
   mat4x4 view;
-  mat4x4LookAt(view, (vec3){50.0f,15.0f,-15.0f}, // Camera is at (4,3,-3), in World Space
+  mat4x4LookAt(view, game_state->camera_position, // Camera is at (4,3,-3), in World Space
                      (vec3){0.0,0,0.0}, // and looks at the origin
                      (vec3){0.0,1.0,0.0}  // Head is up (set to 0,-1,0 to look upside-down)
   );

@@ -20,6 +20,9 @@ struct GameState
   float rotate_x_deg;
   float rotate_y_deg;
   float rotate_z_deg;
+
+  vec3 camera_velocity;
+  vec3 camera_position;
 };
 
 void
