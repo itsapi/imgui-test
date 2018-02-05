@@ -15,6 +15,7 @@ struct GameState
   GLuint index_buffer;
   GLuint color_buffer;
 
+  unsigned int frame;
   bool init;
   float fov;
   float rotate_x_deg;

@@ -266,7 +266,7 @@ main_loop(GameState *game_state)
   // Draw the triangle !
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
 
-  float s = 1;
+  mat4x4 cube;
   vec3 translation;
   for (translation.x = -20;
        translation.x <= 20;
@@ -275,12 +275,11 @@ main_loop(GameState *game_state)
        translation.z <= 20;
        translation.z += 2)
   {
-    // Model matrix : an identity matrix (model will be at the origin)
-    mat4x4 model;
-    mat4x4Identity(model);
-    mat4x4Translate(model, translation);
-    mat4x4Translate(model, {0, sin((translation.x + translation.z) * M_PI / 10.0), 0});
-    glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &model[0][0]);
+    mat4x4Identity(cube);
+    mat4x4Translate(cube, translation);
+    float offset = sin(game_state->frame*1.0/100 + (translation.x + translation.z) * M_PI / 10.0);
+    mat4x4Translate(cube, {0, offset, 0});
+    glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &cube[0][0]);
     glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
   }
 
