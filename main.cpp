@@ -84,6 +84,8 @@ int main(int, char**)
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
+        SDL_GetWindowSize(window, &(game_state.window_width), &(game_state.window_height));
+
         main_loop(&game_state);
 
         ImGui::Render();

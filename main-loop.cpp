@@ -112,6 +112,16 @@ main_loop(GameState *game_state)
     camera_rotation_acceleration.x -= 1;
   }
 
+  vec2 mouse_pos = ImGui::GetMousePos();
+  if ((mouse_pos.x > 0 && mouse_pos.x < game_state->window_width) &&
+      (mouse_pos.y > 0 && mouse_pos.y < game_state->window_height) &&
+      ImGui::IsMouseDragging())
+  {
+    vec2 mouse_drag_delta = ImGui::GetMouseDragDelta();
+    camera_rotation_acceleration.y = -(mouse_drag_delta.x / game_state->window_width);
+    camera_rotation_acceleration.x = -(mouse_drag_delta.y / game_state->window_height);
+  }
+
   camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
   game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
   game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
