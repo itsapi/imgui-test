@@ -10,7 +10,16 @@
 #   pacman -S mingw-w64-i686-SDL # MSYS2
 #
 
-#CXX = g++
+CXX = clang++
+
+
+# Supply make with DEBUG=1 to switch to debug build
+DEBUG ?= 0
+ifeq ($(DEBUG), 1)
+	DEBUG_FLAGS = -O0 -ggdb -D_DEBUG
+else
+	DEBUG_FLAGS =
+endif
 
 EXE = imgui_test.out
 OBJS = main.o imgui_impl_sdl_gl3.o
@@ -26,8 +35,10 @@ ifeq ($(UNAME_S), Linux) #LINUX
 	LIBS = -lGL -ldl `sdl2-config --libs`
 
 	CXXFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
-	CXXFLAGS += -Wall -Wformat
-	CFLAGS = $(CXXFLAGS)
+	CXXFLAGS += -Werror -Wformat -std=c++14
+	CXXFLAGS += $(DEBUG_FLAGS)
+	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
+	CFLAGS += $(DEBUG_FLAGS)
 endif
 
 ifeq ($(UNAME_S), Darwin) #APPLE
@@ -35,22 +46,26 @@ ifeq ($(UNAME_S), Darwin) #APPLE
 	LIBS = -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo `sdl2-config --libs`
 
 	CXXFLAGS = -I. -Ilibs/gl3w -I/usr/local/include `sdl2-config --cflags`
-	CXXFLAGS += -Wall -Wformat
-	CFLAGS = $(CXXFLAGS)
+	CXXFLAGS += -Werror -Wformat -std=c++14
+	CXXFLAGS += $(DEBUG_FLAGS)
+	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
+	CFLAGS += $(DEBUG_FLAGS)
 endif
 
 ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
-   ECHO_MESSAGE = "Windows"
-   LIBS = -lgdi32 -lopengl32 -limm32 `pkg-config --static --libs sdl2`
+  ECHO_MESSAGE = "Windows"
+  LIBS = -lgdi32 -lopengl32 -limm32 `pkg-config --static --libs sdl2`
 
-   CXXFLAGS = -Ilibs/gl3w `pkg-config --cflags sdl2`
-   CXXFLAGS += -Wall -Wformat
-   CFLAGS = $(CXXFLAGS)
+  CXXFLAGS = -Ilibs/gl3w `pkg-config --cflags sdl2`
+  CXXFLAGS += -Werror -Wformat -std=c++14
+	CXXFLAGS += $(DEBUG_FLAGS)
+	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
+	CFLAGS += $(DEBUG_FLAGS)
 endif
 
 
 .cpp.o:
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) -MMD -c -o $@ $<
 
 all: $(EXE)
 	@echo Build complete for $(ECHO_MESSAGE)
@@ -58,5 +73,7 @@ all: $(EXE)
 $(EXE): $(OBJS)
 	$(CXX) -o $(EXE) $(OBJS) $(CXXFLAGS) $(LIBS)
 
+-include $(OBJS:.o=.d)
+
 clean:
-	rm $(EXE) $(OBJS)
+	rm $(EXE) $(OBJS) $(OBJS:.o=.d)
