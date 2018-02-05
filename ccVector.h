@@ -22,7 +22,6 @@
 #include <math.h>
 #include <string.h>
 
-#define _DEBUG
 #ifdef _DEBUG
 #include "assert.h"
 #endif

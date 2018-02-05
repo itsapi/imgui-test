@@ -11,21 +11,25 @@
 #
 
 CXX = clang++
-
+CC = clang
 
 # Supply make with DEBUG=1 to switch to debug build
 DEBUG ?= 0
 ifeq ($(DEBUG), 1)
 	DEBUG_FLAGS = -O0 -ggdb -D_DEBUG
+	BUILD_DIR = build-debug
 else
 	DEBUG_FLAGS =
+	BUILD_DIR = build
 endif
 
-EXE = imgui_test.out
-OBJS = main.o imgui_impl_sdl_gl3.o
-OBJS += imgui.o imgui_demo.o imgui_draw.o
-OBJS += main-loop.o shader.o
-OBJS += libs/gl3w/GL/gl3w.o
+EXE = $(BUILD_DIR)/imgui_test.out
+
+CXXSRCS = $(shell find -type f -name '*.cpp')
+CXXOBJS = $(CXXSRCS:./%.cpp=$(BUILD_DIR)/%.o)
+
+CSRCS += $(shell find -type f -name '*.c')
+COBJS = $(CSRCS:./%.c=$(BUILD_DIR)/%.o)
 
 UNAME_S := $(shell uname -s)
 
@@ -64,16 +68,24 @@ ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
 endif
 
 
-.cpp.o:
+$(BUILD_DIR)/%.o: %.cpp
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -MMD -c -o $@ $<
+
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -MMD -c -o $@ $<
 
 all: $(EXE)
 	@echo Build complete for $(ECHO_MESSAGE)
 
-$(EXE): $(OBJS)
-	$(CXX) -o $(EXE) $(OBJS) $(CXXFLAGS) $(LIBS)
+$(EXE): $(CXXOBJS) $(COBJS)
+	$(warning $(CXXOBJS) $(COBJS))
+	$(CXX) -o $(EXE) $(CXXOBJS) $(COBJS) $(CXXFLAGS) $(LIBS)
 
--include $(OBJS:.o=.d)
+-include $(COBJS:.o=.d)
+
+-include $(CXXOBJS:.o=.d)
 
 clean:
-	rm $(EXE) $(OBJS) $(OBJS:.o=.d)
+	rm $(BUILD_DIR) -r
