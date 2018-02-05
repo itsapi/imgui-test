@@ -35,6 +35,7 @@ main_loop(GameState *game_state)
     glEnable(GL_DEPTH_TEST);
     // Accept fragment if it closer to the camera than the former one
     glDepthFunc(GL_LESS);
+    glEnable(GL_CULL_FACE);
 
     GLuint vertex_array_id;
     glGenVertexArrays(1, &vertex_array_id);
@@ -62,23 +63,25 @@ main_loop(GameState *game_state)
     };
 
     const GLubyte index_buffer_data[] = {
+      // Top
       0, 1, 2,
       0, 2, 3,
 
-      0, 1, 4,
-      4, 5, 1,
+      0, 4, 1,
+      5, 1, 4,
 
-      1, 2, 5,
+      1, 5, 2,
       5, 6, 2,
 
-      2, 3, 6,
+      2, 6, 3,
       6, 7, 3,
 
-      7, 5, 4,
-      5, 7, 6,
-
       3, 7, 4,
-      3, 4, 0
+      3, 4, 0,
+
+      // Bottom
+      7, 5, 4,
+      5, 7, 6
     };
 
     glGenBuffers(1, &game_state->vertex_buffer);
@@ -119,11 +122,11 @@ main_loop(GameState *game_state)
   game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
 
   vec4 camera_acceleration = {0, 0, 0, 1};
-  if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT))
   {
     camera_acceleration.x += 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP))
   {
     camera_acceleration.x -= 1;
   }
