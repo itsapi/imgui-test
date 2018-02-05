@@ -234,7 +234,8 @@ main_loop(GameState *game_state)
   // Our ModelViewProjection : multiplication of our 3 matrices
   mat4x4 view_projection;
   mat4x4MultiplyMatrix(view_projection, view, projection); // Remember, matrix multiplication is the other way around
-  mat4x4MultiplyMatrix(game_state->model_view_projection, model, view_projection); // Remember, matrix multiplication is the other way around
+  mat4x4 model_view_projection;
+  mat4x4MultiplyMatrix(model_view_projection, model, view_projection); // Remember, matrix multiplication is the other way around
 
   // One color for each vertex. They were generated randomly.
   int n_colours = 8;
@@ -258,7 +259,7 @@ main_loop(GameState *game_state)
 
   // Send our transformation to the currently bound shader,
   // in the "MVP" uniform
-  glUniformMatrix4fv(game_state->vp_matrix_id, 1, GL_FALSE, &game_state->model_view_projection[0][0]);
+  glUniformMatrix4fv(game_state->vp_matrix_id, 1, GL_FALSE, &model_view_projection[0][0]);
 
   // 1rst attribute buffer : vertices
   glEnableVertexAttribArray(0);
