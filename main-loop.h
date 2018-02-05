@@ -21,6 +21,8 @@ struct GameState
   float rotate_x_deg;
   float rotate_y_deg;
   float rotate_z_deg;
+  float bounce_speed;
+  float bounce_height;
 
   vec3 camera_velocity;
   vec3 camera_position;

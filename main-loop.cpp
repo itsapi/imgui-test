@@ -23,6 +23,8 @@ main_loop(GameState *game_state)
     game_state->rotate_x_deg = 0;
     game_state->rotate_y_deg = 0;
     game_state->rotate_z_deg = 0;
+    game_state->bounce_speed = 1;
+    game_state->bounce_height = 5;
     game_state->camera_velocity = {};
     game_state->camera_position = {30.0f,15.0f,30.0f};
     game_state->camera_direction_velocity = {};
@@ -95,6 +97,8 @@ main_loop(GameState *game_state)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
   }
 
+  ImGuiIO& io = ImGui::GetIO();
+
   game_state->frame += 1;
 
   vec3 camera_rotation_acceleration = {};
@@ -114,12 +118,6 @@ main_loop(GameState *game_state)
   {
     camera_rotation_acceleration.x -= 1;
   }
-
-  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
-  game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
-  game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
-
-  game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
 
   vec4 camera_acceleration = {0, 0, 0, 1};
   if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT))
@@ -147,21 +145,39 @@ main_loop(GameState *game_state)
     camera_acceleration.y -= 1;
   }
 
+  if (!io.WantCaptureMouse)
+  {
+    vec2 mouse_pos = ImGui::GetMousePos();
+    if ((mouse_pos.x > 0 && mouse_pos.x < io.DisplaySize.x) &&
+        (mouse_pos.y > 0 && mouse_pos.y < io.DisplaySize.y) &&
+        ImGui::IsMouseDragging())
+    {
+      vec2 mouse_drag_delta = ImGui::GetMouseDragDelta();
+      camera_rotation_acceleration.y = -(mouse_drag_delta.x / io.DisplaySize.x);
+      camera_rotation_acceleration.x = -(mouse_drag_delta.y / io.DisplaySize.y);
+    }
+
+    camera_acceleration.z += io.MouseWheel;
+  }
+
+  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
   camera_acceleration = vec4Multiply(camera_acceleration, -0.2);
+
+  game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
+  game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
+  game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
 
   mat4x4 camera_orientation;
   mat4x4Identity(camera_orientation);
   mat4x4RotateZ(camera_orientation, -game_state->camera_direction.z);
   mat4x4RotateX(camera_orientation, -game_state->camera_direction.x);
   mat4x4RotateY(camera_orientation, -game_state->camera_direction.y);
+
   vec3 camera_world_acceleration = mat4x4MultiplyVector(camera_orientation, camera_acceleration).xyz;
+
   game_state->camera_velocity = vec3Add(game_state->camera_velocity, camera_world_acceleration);
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
-
   game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
-
-  ImGuiIO& io = ImGui::GetIO();
-  // ImGui::ShowDemoWindow();
 
   if (ImGui::Begin("Render parameters"))
   {
@@ -169,6 +185,8 @@ main_loop(GameState *game_state)
     ImGui::DragFloat("Rotate X", &game_state->rotate_x_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Y", &game_state->rotate_y_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Z", &game_state->rotate_z_deg, 1, -360, 360);
+    ImGui::DragFloat("Bounce Speed", &game_state->bounce_speed, 1, 0, 100);
+    ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 1, 0, 100);
 
     static int colour_picker_n = 0;
 
@@ -280,7 +298,7 @@ main_loop(GameState *game_state)
   {
     mat4x4Identity(cube);
     mat4x4Translate(cube, translation);
-    float offset = sin(game_state->frame*1.0/100 + (translation.x + translation.z) * M_PI / 10.0);
+    float offset = sin(game_state->frame * game_state->bounce_speed / 100 + (translation.x + translation.z) * M_PI / 10.0) * game_state->bounce_height / 5;
     mat4x4Translate(cube, {0, offset, 0});
     glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &cube[0][0]);
     glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
