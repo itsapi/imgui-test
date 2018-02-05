@@ -114,22 +114,6 @@ main_loop(GameState *game_state)
     camera_rotation_acceleration.x -= 1;
   }
 
-  vec2 mouse_pos = ImGui::GetMousePos();
-  if ((mouse_pos.x > 0 && mouse_pos.x < io.DisplaySize.x) &&
-      (mouse_pos.y > 0 && mouse_pos.y < io.DisplaySize.y) &&
-      ImGui::IsMouseDragging())
-  {
-    vec2 mouse_drag_delta = ImGui::GetMouseDragDelta();
-    camera_rotation_acceleration.y = -(mouse_drag_delta.x / io.DisplaySize.x);
-    camera_rotation_acceleration.x = -(mouse_drag_delta.y / io.DisplaySize.y);
-  }
-
-  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
-  game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
-  game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
-
-  game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
-
   vec4 camera_acceleration = {0, 0, 0, 1};
   if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP))
   {
@@ -156,19 +140,38 @@ main_loop(GameState *game_state)
     camera_acceleration.y -= 1;
   }
 
-  camera_acceleration.z += io.MouseWheel;
+  if (!io.WantCaptureMouse)
+  {
+    vec2 mouse_pos = ImGui::GetMousePos();
+    if ((mouse_pos.x > 0 && mouse_pos.x < io.DisplaySize.x) &&
+        (mouse_pos.y > 0 && mouse_pos.y < io.DisplaySize.y) &&
+        ImGui::IsMouseDragging())
+    {
+      vec2 mouse_drag_delta = ImGui::GetMouseDragDelta();
+      camera_rotation_acceleration.y = -(mouse_drag_delta.x / io.DisplaySize.x);
+      camera_rotation_acceleration.x = -(mouse_drag_delta.y / io.DisplaySize.y);
+    }
 
+    camera_acceleration.z += io.MouseWheel;
+  }
+
+  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
   camera_acceleration = vec4Multiply(camera_acceleration, -0.2);
+
+  game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
+  game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
+  game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
 
   mat4x4 camera_orientation;
   mat4x4Identity(camera_orientation);
   mat4x4RotateZ(camera_orientation, -game_state->camera_direction.z);
   mat4x4RotateX(camera_orientation, -game_state->camera_direction.x);
   mat4x4RotateY(camera_orientation, -game_state->camera_direction.y);
+
   vec3 camera_world_acceleration = mat4x4MultiplyVector(camera_orientation, camera_acceleration).xyz;
+
   game_state->camera_velocity = vec3Add(game_state->camera_velocity, camera_world_acceleration);
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
-
   game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
 
   if (ImGui::Begin("Render parameters"))
