@@ -92,6 +92,8 @@ main_loop(GameState *game_state)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
   }
 
+  ImGuiIO& io = ImGui::GetIO();
+
   game_state->frame += 1;
 
   vec3 camera_rotation_acceleration = {};
@@ -113,13 +115,13 @@ main_loop(GameState *game_state)
   }
 
   vec2 mouse_pos = ImGui::GetMousePos();
-  if ((mouse_pos.x > 0 && mouse_pos.x < game_state->window_width) &&
-      (mouse_pos.y > 0 && mouse_pos.y < game_state->window_height) &&
+  if ((mouse_pos.x > 0 && mouse_pos.x < io.DisplaySize.x) &&
+      (mouse_pos.y > 0 && mouse_pos.y < io.DisplaySize.y) &&
       ImGui::IsMouseDragging())
   {
     vec2 mouse_drag_delta = ImGui::GetMouseDragDelta();
-    camera_rotation_acceleration.y = -(mouse_drag_delta.x / game_state->window_width);
-    camera_rotation_acceleration.x = -(mouse_drag_delta.y / game_state->window_height);
+    camera_rotation_acceleration.y = -(mouse_drag_delta.x / io.DisplaySize.x);
+    camera_rotation_acceleration.x = -(mouse_drag_delta.y / io.DisplaySize.y);
   }
 
   camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
@@ -154,6 +156,8 @@ main_loop(GameState *game_state)
     camera_acceleration.y -= 1;
   }
 
+  camera_acceleration.z += io.MouseWheel;
+
   camera_acceleration = vec4Multiply(camera_acceleration, -0.2);
 
   mat4x4 camera_orientation;
@@ -166,9 +170,6 @@ main_loop(GameState *game_state)
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
 
   game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
-
-  ImGuiIO& io = ImGui::GetIO();
-  // ImGui::ShowDemoWindow();
 
   if (ImGui::Begin("Render parameters"))
   {
