@@ -23,6 +23,8 @@ main_loop(GameState *game_state)
     game_state->rotate_x_deg = 0;
     game_state->rotate_y_deg = 0;
     game_state->rotate_z_deg = 0;
+    game_state->bounce_speed = 1;
+    game_state->bounce_height = 5;
     game_state->camera_velocity = {};
     game_state->camera_position = {30.0f,15.0f,30.0f};
     game_state->camera_direction_velocity = {};
@@ -180,6 +182,8 @@ main_loop(GameState *game_state)
     ImGui::DragFloat("Rotate X", &game_state->rotate_x_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Y", &game_state->rotate_y_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Z", &game_state->rotate_z_deg, 1, -360, 360);
+    ImGui::DragFloat("Bounce Speed", &game_state->bounce_speed, 1, 0, 100);
+    ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 1, 0, 100);
 
     static int colour_picker_n = 0;
 
@@ -291,7 +295,7 @@ main_loop(GameState *game_state)
   {
     mat4x4Identity(cube);
     mat4x4Translate(cube, translation);
-    float offset = sin(game_state->frame*1.0/100 + (translation.x + translation.z) * M_PI / 10.0);
+    float offset = sin(game_state->frame * game_state->bounce_speed / 100 + (translation.x + translation.z) * M_PI / 10.0) * game_state->bounce_height / 5;
     mat4x4Translate(cube, {0, offset, 0});
     glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &cube[0][0]);
     glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
