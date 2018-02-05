@@ -23,8 +23,12 @@ main_loop(GameState *game_state)
     game_state->rotate_x_deg = 0;
     game_state->rotate_y_deg = 0;
     game_state->rotate_z_deg = 0;
-    game_state->camera_position = {50.0f,15.0f,-15.0f};
+    game_state->camera_velocity = {};
+    game_state->camera_position = {30.0f,15.0f,30.0f};
+    game_state->camera_direction_velocity = {};
+    game_state->camera_direction = {};
 
+    game_state->frame = 0;
     game_state->init = true;
 
     // Enable depth test
@@ -54,8 +58,7 @@ main_loop(GameState *game_state)
        1.0f, -1.0f,  1.0f,
        1.0f, -1.0f, -1.0f,
       -1.0f, -1.0f, -1.0f,
-      -1.0f, -1.0f,  1.0f,
-
+      -1.0f, -1.0f,  1.0f
     };
 
     const GLubyte index_buffer_data[] = {
@@ -89,12 +92,38 @@ main_loop(GameState *game_state)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
   }
 
-  vec3 camera_acceleration = {};
+  game_state->frame += 1;
+
+  vec3 camera_rotation_acceleration = {};
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
+  {
+    camera_rotation_acceleration.y += 1;
+  }
   if (ImGui::IsKeyDown(SDL_SCANCODE_LEFT))
+  {
+    camera_rotation_acceleration.y -= 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_END))
+  {
+    camera_rotation_acceleration.x += 1;
+  }
+  if (ImGui::IsKeyDown(SDL_SCANCODE_HOME))
+  {
+    camera_rotation_acceleration.x -= 1;
+  }
+
+  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
+  game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
+  game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
+
+  game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
+
+  vec4 camera_acceleration = {0, 0, 0, 1};
+  if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP))
   {
     camera_acceleration.x += 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT))
   {
     camera_acceleration.x -= 1;
   }
@@ -106,17 +135,24 @@ main_loop(GameState *game_state)
   {
     camera_acceleration.z -= 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL))
   {
     camera_acceleration.y += 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT))
   {
     camera_acceleration.y -= 1;
   }
 
-  camera_acceleration = vec3Multiply(camera_acceleration, 0.2);
-  game_state->camera_velocity = vec3Add(game_state->camera_velocity, camera_acceleration);
+  camera_acceleration = vec4Multiply(camera_acceleration, -0.2);
+
+  mat4x4 camera_orientation;
+  mat4x4Identity(camera_orientation);
+  mat4x4RotateZ(camera_orientation, -game_state->camera_direction.z);
+  mat4x4RotateX(camera_orientation, -game_state->camera_direction.x);
+  mat4x4RotateY(camera_orientation, -game_state->camera_direction.y);
+  vec3 camera_world_acceleration = mat4x4MultiplyVector(camera_orientation, camera_acceleration).xyz;
+  game_state->camera_velocity = vec3Add(game_state->camera_velocity, camera_world_acceleration);
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
 
   game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
@@ -155,21 +191,24 @@ main_loop(GameState *game_state)
     }
   }
 
+  ImGui::End();
+
   // Projection matrix : 45� Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
   mat4x4 projection;
   mat4x4Perspective(projection, (game_state->fov*(M_PI/180.0f)), io.DisplaySize.x / io.DisplaySize.y, 0.1f, 100.0f);
   // Model matrix : an identity matrix (model will be at the origin)
   mat4x4 model;
   mat4x4Identity(model);
-  mat4x4RotateX(model, game_state->rotate_x_deg*(M_PI/180.0f));
   mat4x4RotateY(model, game_state->rotate_y_deg*(M_PI/180.0f));
+  mat4x4RotateX(model, game_state->rotate_x_deg*(M_PI/180.0f));
   mat4x4RotateZ(model, game_state->rotate_z_deg*(M_PI/180.0f));
   // Camera matrix
   mat4x4 view;
-  mat4x4LookAt(view, game_state->camera_position, // Camera is at (4,3,-3), in World Space
-                     (vec3){0.0,0,0.0}, // and looks at the origin
-                     (vec3){0.0,1.0,0.0}  // Head is up (set to 0,-1,0 to look upside-down)
-  );
+  mat4x4Identity(view);
+  mat4x4Translate(view, vec3Multiply(game_state->camera_position, -1));
+  mat4x4RotateY(view, game_state->camera_direction.y);
+  mat4x4RotateX(view, game_state->camera_direction.x);
+  mat4x4RotateZ(view, game_state->camera_direction.z);
 
   // Our ModelViewProjection : multiplication of our 3 matrices
   mat4x4 view_projection;
@@ -247,8 +286,6 @@ main_loop(GameState *game_state)
 
   glDisableVertexAttribArray(0);
   glDisableVertexAttribArray(1);
-
-  ImGui::End();
 }
 
 

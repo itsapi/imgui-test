@@ -23,6 +23,9 @@ struct GameState
 
   vec3 camera_velocity;
   vec3 camera_position;
+
+  vec3 camera_direction_velocity;
+  vec3 camera_direction;
 };
 
 void
