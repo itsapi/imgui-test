@@ -5,6 +5,25 @@
 #include <GL/gl3w.h>
 #include <SDL.h>
 #include "ccVector.h"
+#include <sys/time.h>
+#include <unistd.h>
+
+
+uint64_t
+get_us()
+{
+  struct timeval tv;
+  gettimeofday(&tv, 0);
+  return ((uint64_t)tv.tv_sec * (uint64_t)1000000) + (uint64_t)tv.tv_usec;
+}
+
+
+bool
+sleep_us(int us)
+{
+  int error = usleep(us);
+  return error;
+}
 
 
 void
@@ -19,18 +38,19 @@ main_loop(GameState *game_state)
 
   if (!game_state->init)
   {
+    game_state->game_start_time = get_us();
+    game_state->fps = 60;
     game_state->fov = 45.0f;
     game_state->rotate_x_deg = 0;
     game_state->rotate_y_deg = 0;
     game_state->rotate_z_deg = 0;
-    game_state->bounce_speed = 1;
-    game_state->bounce_height = 5;
+    game_state->bounces_per_second = 1;
+    game_state->bounce_height = 1;
     game_state->camera_velocity = {};
     game_state->camera_position = {30.0f,15.0f,30.0f};
     game_state->camera_direction_velocity = {};
     game_state->camera_direction = {};
 
-    game_state->frame = 0;
     game_state->init = true;
 
     // Enable depth test
@@ -97,9 +117,10 @@ main_loop(GameState *game_state)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
   }
 
-  ImGuiIO& io = ImGui::GetIO();
+  uint64_t frame_start_time = get_us();
+  unsigned int frame_time = frame_start_time - game_state->game_start_time;
 
-  game_state->frame += 1;
+  ImGuiIO& io = ImGui::GetIO();
 
   vec3 camera_rotation_acceleration = {};
   if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
@@ -183,12 +204,17 @@ main_loop(GameState *game_state)
 
   if (ImGui::Begin("Render parameters"))
   {
+    ImGui::DragInt("FPS", &game_state->fps, 1, 1, 120);
+
     ImGui::DragFloat("FOV", &game_state->fov, 1, 1, 180);
+    ImGui::DragFloat3("Camera position", (float *)&game_state->camera_position.v);
+    ImGui::DragFloat3("Camera direction", (float *)&game_state->camera_direction.v);
+
     ImGui::DragFloat("Rotate X", &game_state->rotate_x_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Y", &game_state->rotate_y_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Z", &game_state->rotate_z_deg, 1, -360, 360);
-    ImGui::DragFloat("Bounce Speed", &game_state->bounce_speed, 1, 0, 100);
-    ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 1, 0, 100);
+    ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
+    ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 0.1, 0, 100);
 
     static int colour_picker_n = 0;
 
@@ -215,6 +241,8 @@ main_loop(GameState *game_state)
   }
 
   ImGui::End();
+
+  float frame_delta_us = 1000000.0/game_state->fps;
 
   // Projection matrix : 45� Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
   mat4x4 projection;
@@ -290,6 +318,8 @@ main_loop(GameState *game_state)
   // Draw the triangle !
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
 
+  float bounces_per_us = game_state->bounces_per_second / 1000000.0;
+
   mat4x4 cube;
   vec3 translation;
   for (translation.x = -20;
@@ -301,7 +331,7 @@ main_loop(GameState *game_state)
   {
     mat4x4Identity(cube);
     mat4x4Translate(cube, translation);
-    float offset = sin(game_state->frame * game_state->bounce_speed / 100 + (translation.x + translation.z) * M_PI / 10.0) * game_state->bounce_height / 5;
+    float offset = sin(frame_time * bounces_per_us * 2*M_PI + (translation.x + translation.z) * M_PI / 10.0) * game_state->bounce_height;
     mat4x4Translate(cube, {0, offset, 0});
     glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &cube[0][0]);
     glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
@@ -309,6 +339,15 @@ main_loop(GameState *game_state)
 
   glDisableVertexAttribArray(0);
   glDisableVertexAttribArray(1);
+
+  uint64_t frame_end_time = get_us();
+  float this_frame_delta = (float)(frame_end_time - frame_start_time);
+  float frame_delta_left = frame_delta_us - this_frame_delta;
+
+  if (frame_delta_left)
+  {
+    usleep(frame_delta_left);
+  }
 }
 
 

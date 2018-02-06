@@ -14,13 +14,16 @@ struct GameState
   GLuint index_buffer;
   GLuint color_buffer;
 
-  unsigned int frame;
   bool init;
+
+  int fps;
+  uint64_t game_start_time;
+
   float fov;
   float rotate_x_deg;
   float rotate_y_deg;
   float rotate_z_deg;
-  float bounce_speed;
+  float bounces_per_second;
   float bounce_height;
 
   vec2 last_frame_mouse;
