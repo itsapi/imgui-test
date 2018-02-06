@@ -167,19 +167,22 @@ main_loop(GameState *game_state)
     camera_acceleration.y -= 1;
   }
 
+  vec2 mouse_pos = ImGui::GetMousePos();
+  if ((mouse_pos.x < 0 || mouse_pos.x >= io.DisplaySize.x) ||
+      (mouse_pos.y < 0 || mouse_pos.y >= io.DisplaySize.y) ||
+      io.WantCaptureMouse)
+  {
+    mouse_pos = game_state->last_frame_mouse;
+  }
+
   if (!io.WantCaptureMouse)
   {
-    vec2 mouse_pos = ImGui::GetMousePos();
-    if ((mouse_pos.x > 0 && mouse_pos.x < io.DisplaySize.x) &&
-        (mouse_pos.y > 0 && mouse_pos.y < io.DisplaySize.y) &&
-        ImGui::IsMouseDragging())
+    if (ImGui::IsMouseDragging())
     {
       vec2 mouse_drag_delta = vec2Subtract(mouse_pos, game_state->last_frame_mouse);
       game_state->camera_direction.y += -(mouse_drag_delta.x / io.DisplaySize.x);
       game_state->camera_direction.x += -(mouse_drag_delta.y / io.DisplaySize.y);
     }
-
-    game_state->last_frame_mouse = mouse_pos;
 
     camera_acceleration.z += io.MouseWheel;
   }
@@ -338,6 +341,8 @@ main_loop(GameState *game_state)
 
   glDisableVertexAttribArray(0);
   glDisableVertexAttribArray(1);
+
+  game_state->last_frame_mouse = mouse_pos;
 
   uint64_t frame_end_time = get_us();
   float this_frame_delta = (float)(frame_end_time - frame_start_time);
