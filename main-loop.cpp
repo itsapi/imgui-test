@@ -44,10 +44,11 @@ main_loop(GameState *game_state)
     game_state->rotate_x_deg = 0;
     game_state->rotate_y_deg = 0;
     game_state->rotate_z_deg = 0;
+    game_state->sine_offset_type = SineOffsetType::Concentric;
     game_state->bounces_per_second = 1;
     game_state->bounce_height = 1;
     game_state->camera_velocity = {};
-    game_state->camera_position = {30.0f,15.0f,30.0f};
+    game_state->camera_position = {15.0f,10.0f,15.0f};
     game_state->camera_direction_velocity = {};
     game_state->camera_direction = {};
     game_state->colour_picker_n = 0;
@@ -217,6 +218,8 @@ main_loop(GameState *game_state)
     ImGui::DragFloat("Rotate X", &game_state->rotate_x_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Y", &game_state->rotate_y_deg, 1, -360, 360);
     ImGui::DragFloat("Rotate Z", &game_state->rotate_z_deg, 1, -360, 360);
+
+    ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
     ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
     ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 0.1, 0, 100);
 
@@ -322,18 +325,35 @@ main_loop(GameState *game_state)
 
   float bounces_per_us = game_state->bounces_per_second / 1000000.0;
 
-  mat4x4 cube;
-  vec3 translation;
-  for (translation.x = -20;
-       translation.x <= 20;
-       translation.x += 2)
-  for (translation.z = -20;
-       translation.z <= 20;
-       translation.z += 2)
+  vec2 terrain_dim = {20, 20};
+  vec2 translation;
+  for (translation.x = -terrain_dim.x*0.5;
+       translation.x <= terrain_dim.x*0.5;
+       ++translation.x)
+  for (translation.y = -terrain_dim.y*0.5;
+       translation.y <= terrain_dim.y*0.5;
+       ++translation.y)
   {
+    mat4x4 cube;
     mat4x4Identity(cube);
-    mat4x4Translate(cube, translation);
-    float offset = sin(frame_time * bounces_per_us * 2*M_PI + (translation.x + translation.z) * M_PI / 10.0) * game_state->bounce_height;
+    mat4x4Scale(cube, 0.5);
+    mat4x4Translate(cube, {translation.x, 0, translation.y});
+
+    float sine_offset = 0;
+    switch (game_state->sine_offset_type)
+    {
+      case (SineOffsetType::Diagonal):
+      {
+        sine_offset = (translation.x/terrain_dim.x + translation.y/terrain_dim.y) * 2*M_PI;
+      } break;
+      case (SineOffsetType::Concentric):
+      {
+        sine_offset = vec2Length(translation) / (0.5 * vec2Length(terrain_dim)) * 2*M_PI;
+      } break;
+    }
+
+    float offset = sin(frame_time * bounces_per_us * 2*M_PI + sine_offset) * game_state->bounce_height;
+
     mat4x4Translate(cube, {0, offset, 0});
     glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &cube[0][0]);
     glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
