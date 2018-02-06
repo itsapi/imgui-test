@@ -32,6 +32,7 @@ struct GameState
   SineOffsetType sine_offset_type;
   float bounces_per_second;
   float bounce_height;
+  float oscillation_frequency;
 
   int colour_picker_n;
 

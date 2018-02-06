@@ -46,6 +46,7 @@ main_loop(GameState *game_state)
     game_state->rotate_z_deg = 0;
     game_state->sine_offset_type = SineOffsetType::Concentric;
     game_state->bounces_per_second = 1;
+    game_state->oscillation_frequency = 1;
     game_state->bounce_height = 1;
     game_state->camera_velocity = {};
     game_state->camera_position = {15.0f,10.0f,15.0f};
@@ -221,6 +222,7 @@ main_loop(GameState *game_state)
 
     ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
     ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
+    ImGui::DragFloat("Oscillation Frequency", &game_state->oscillation_frequency, 0.01, 0, 10);
     ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 0.1, 0, 100);
 
     for (int colour_n = 0; colour_n < 2; ++colour_n)
@@ -344,11 +346,11 @@ main_loop(GameState *game_state)
     {
       case (SineOffsetType::Diagonal):
       {
-        sine_offset = (translation.x/terrain_dim.x + translation.y/terrain_dim.y) * 2*M_PI;
+        sine_offset = (translation.x/terrain_dim.x + translation.y/terrain_dim.y) * game_state->oscillation_frequency*2*M_PI;
       } break;
       case (SineOffsetType::Concentric):
       {
-        sine_offset = vec2Length(translation) / (0.5 * vec2Length(terrain_dim)) * 2*M_PI;
+        sine_offset = vec2Length(translation) / (0.5 * vec2Length(terrain_dim)) * game_state->oscillation_frequency*2*M_PI;
       } break;
     }
 
