@@ -152,10 +152,12 @@ main_loop(GameState *game_state)
         (mouse_pos.y > 0 && mouse_pos.y < io.DisplaySize.y) &&
         ImGui::IsMouseDragging())
     {
-      vec2 mouse_drag_delta = ImGui::GetMouseDragDelta();
-      camera_rotation_acceleration.y = -(mouse_drag_delta.x / io.DisplaySize.x);
-      camera_rotation_acceleration.x = -(mouse_drag_delta.y / io.DisplaySize.y);
+      vec2 mouse_drag_delta = vec2Subtract(mouse_pos, game_state->last_frame_mouse);
+      game_state->camera_direction.y += -(mouse_drag_delta.x / io.DisplaySize.x);
+      game_state->camera_direction.x += -(mouse_drag_delta.y / io.DisplaySize.y);
     }
+
+    game_state->last_frame_mouse = mouse_pos;
 
     camera_acceleration.z += io.MouseWheel;
   }

@@ -23,6 +23,8 @@ struct GameState
   float bounce_speed;
   float bounce_height;
 
+  vec2 last_frame_mouse;
+
   vec3 camera_velocity;
   vec3 camera_position;
 
