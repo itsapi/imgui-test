@@ -50,6 +50,7 @@ main_loop(GameState *game_state)
     game_state->camera_position = {30.0f,15.0f,30.0f};
     game_state->camera_direction_velocity = {};
     game_state->camera_direction = {};
+    game_state->colour_picker_n = 0;
 
     game_state->init = true;
 
@@ -216,8 +217,6 @@ main_loop(GameState *game_state)
     ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
     ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 0.1, 0, 100);
 
-    static int colour_picker_n = 0;
-
     for (int colour_n = 0; colour_n < 2; ++colour_n)
     {
       ImGui::PushID(colour_n);
@@ -226,7 +225,7 @@ main_loop(GameState *game_state)
       ImGui::PopID();
 
       if (pushed) {
-        colour_picker_n = colour_n;
+        game_state->colour_picker_n = colour_n;
         ImGui::OpenPopup("Change Colour");
       }
       ImGui::SameLine();
@@ -235,7 +234,7 @@ main_loop(GameState *game_state)
 
     if (ImGui::BeginPopup("Change Colour"))
     {
-      ImGui::ColorPicker3("##picker", (float*)&colours[colour_picker_n]);
+      ImGui::ColorPicker3("##picker", (float*)&colours[game_state->colour_picker_n]);
       ImGui::EndPopup();
     }
   }

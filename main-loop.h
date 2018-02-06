@@ -26,6 +26,8 @@ struct GameState
   float bounces_per_second;
   float bounce_height;
 
+  int colour_picker_n;
+
   vec2 last_frame_mouse;
 
   vec3 camera_velocity;
