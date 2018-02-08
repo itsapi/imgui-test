@@ -16,9 +16,13 @@ struct GameState
   GLuint program_id;
   GLuint mvp_matrix_id;
   GLuint model_matrix_id;
-  GLuint vertex_buffer;
+
   GLuint index_buffer;
+  GLuint vertex_buffer;
   GLuint color_buffer;
+  GLuint uv_buffer;
+
+  GLuint grass_texture_id;
 
   int n_indices;
 

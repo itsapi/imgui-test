@@ -2,9 +2,12 @@
 
 #include "imgui.h"
 #include "shader.h"
+#include "textures/block-texture.h"
+
+#include "ccVector.h"
+
 #include <GL/gl3w.h>
 #include <SDL.h>
-#include "ccVector.h"
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -12,6 +15,7 @@
 
 const int VERTEX_POSITION_ATTRIBUTE = 0;
 const int VERTEX_COLOUR_ATTRIBUTE = 1;
+const int VERTEX_UV_ATTRIBUTE = 2;
 
 
 uint64_t
@@ -79,16 +83,16 @@ main_loop(GameState *game_state)
     // Initialise OpenGL buffers
     //
 
-    const GLfloat vertex_buffer_data[] = {
-       1.0f,  1.0f,  1.0f,
-       1.0f,  1.0f, -1.0f,
-      -1.0f,  1.0f, -1.0f,
-      -1.0f,  1.0f,  1.0f,
+    const vec3 vertex_buffer_data[] = {
+      { 1.0f,  1.0f,  1.0f},
+      { 1.0f,  1.0f, -1.0f},
+      {-1.0f,  1.0f, -1.0f},
+      {-1.0f,  1.0f,  1.0f},
 
-       1.0f, -1.0f,  1.0f,
-       1.0f, -1.0f, -1.0f,
-      -1.0f, -1.0f, -1.0f,
-      -1.0f, -1.0f,  1.0f
+      { 1.0f, -1.0f,  1.0f},
+      { 1.0f, -1.0f, -1.0f},
+      {-1.0f, -1.0f, -1.0f},
+      {-1.0f, -1.0f,  1.0f}
     };
 
     const GLubyte index_buffer_data[] = {
@@ -113,17 +117,49 @@ main_loop(GameState *game_state)
       5, 7, 6
     };
 
+    const vec2 uv_buffer_data[] = {
+      0,   0,
+      0.5, 0,
+      0.5, 1,
+      0,   1,
+
+      0.5, 0,
+      1,   0,
+      1,   1,
+      0.5, 1,
+    };
+
     game_state->n_indices = ARRAY_COUNT(index_buffer_data);
 
-    glGenBuffers(1, &game_state->vertex_buffer);
     glGenBuffers(1, &game_state->index_buffer);
+    glGenBuffers(1, &game_state->vertex_buffer);
     glGenBuffers(1, &game_state->color_buffer);
+    glGenBuffers(1, &game_state->uv_buffer);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_buffer_data), vertex_buffer_data, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, game_state->uv_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(uv_buffer_data), uv_buffer_data, GL_STATIC_DRAW);
+
+    // Initialise OpenGL textures
+    //
+
+    glGenTextures(1, &game_state->grass_texture_id);
+    glBindTexture(GL_TEXTURE_2D, game_state->grass_texture_id);
+
+    assert(BLOCK_TEXTURE.bytes_per_pixel == 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, BLOCK_TEXTURE.width, BLOCK_TEXTURE.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, BLOCK_TEXTURE.pixel_data);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glGenerateMipmap(GL_TEXTURE_2D);
   }
 
   uint64_t frame_start_time = get_us();
@@ -333,6 +369,17 @@ main_loop(GameState *game_state)
     (void*)0   // array buffer offset
   );
 
+  glEnableVertexAttribArray(VERTEX_UV_ATTRIBUTE);
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->uv_buffer);
+  glVertexAttribPointer(
+    VERTEX_UV_ATTRIBUTE,
+    2,         // size
+    GL_FLOAT,  // type
+    GL_FALSE,  // normalized?
+    0,         // stride
+    (void*)0   // array buffer offset
+  );
+
   // Render
   //
 
@@ -341,6 +388,7 @@ main_loop(GameState *game_state)
 
   glUniformMatrix4fv(game_state->mvp_matrix_id, 1, GL_FALSE, &model_view_projection[0][0]);
 
+  glBindTexture(GL_TEXTURE_2D, game_state->grass_texture_id);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
 
   float bounces_per_us = game_state->bounces_per_second / 1000000.0;
