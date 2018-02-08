@@ -275,6 +275,14 @@ main_loop(GameState *game_state)
       game_state->camera_direction = vec3Multiply(camera_direction_deg, M_PI/180.0);
     }
 
+    if (ImGui::Button("Top down view"))
+    {
+      game_state->camera_position = {0, 20, 0};
+      game_state->camera_direction = {0.5*M_PI, 0, 0};
+      game_state->camera_velocity = {};
+      game_state->camera_direction_velocity = {};
+    }
+
     ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
 
     ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
