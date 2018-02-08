@@ -79,6 +79,11 @@ int main(int, char**)
         }
         ImGui_ImplSdlGL3_NewFrame(window);
 
+        if (ImGui::IsKeyDown(SDLK_ESCAPE))
+        {
+            done = true;
+        }
+
         // Rendering
         glViewport(0, 0, (int)ImGui::GetIO().DisplaySize.x, (int)ImGui::GetIO().DisplaySize.y);
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);

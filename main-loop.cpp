@@ -8,6 +8,11 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#define ARRAY_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+const int VERTEX_POSITION_ATTRIBUTE = 0;
+const int VERTEX_COLOUR_ATTRIBUTE = 1;
+
 
 uint64_t
 get_us()
@@ -29,21 +34,15 @@ sleep_us(int us)
 void
 main_loop(GameState *game_state)
 {
-  static const int n_indices = 36;
-
-  static vec3 colours[] = {
-    {0.15f, 0.7f, 0.1f},
-    {0.2f, 0.1f, 0.1f}
-  };
-
   if (!game_state->init)
   {
+    // Initialise GameState
+    //
+
     game_state->game_start_time = get_us();
     game_state->fps = 60;
     game_state->fov = 45.0f;
-    game_state->rotate_x_deg = 0;
-    game_state->rotate_y_deg = 0;
-    game_state->rotate_z_deg = 0;
+    game_state->terrain_rotation = {};
     game_state->sine_offset_type = SineOffsetType::Concentric;
     game_state->bounces_per_second = 1;
     game_state->oscillation_frequency = 1;
@@ -51,31 +50,36 @@ main_loop(GameState *game_state)
     game_state->camera_velocity = {};
     game_state->camera_position = {15.0f,10.0f,15.0f};
     game_state->camera_direction_velocity = {};
-    game_state->camera_direction = {};
+    game_state->camera_direction = { (float)atan2(game_state->camera_position.y, game_state->camera_position.z),
+                                    -(float)atan2(game_state->camera_position.x, game_state->camera_position.z), 0.0f};
+
     game_state->colour_picker_n = 0;
+    game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
+    game_state->colours[1] = {0.2f, 0.1f, 0.1f, 1};
 
     game_state->init = true;
 
-    // Enable depth test
     glEnable(GL_DEPTH_TEST);
-    // Accept fragment if it closer to the camera than the former one
     glDepthFunc(GL_LESS);
+
     glEnable(GL_CULL_FACE);
 
     GLuint vertex_array_id;
     glGenVertexArrays(1, &vertex_array_id);
     glBindVertexArray(vertex_array_id);
 
-    // Create and compile our GLSL program from the shaders
+    // Initialise OpenGL shaders
+    //
+
     game_state->program_id = LoadShaders( "TransformVertexShader.vertexshader", "ColorFragmentShader.fragmentshader" );
 
-    // Get a handle for our "MVP" uniform
-    game_state->vp_matrix_id = glGetUniformLocation(game_state->program_id, "VP");
-    game_state->m_matrix_id = glGetUniformLocation(game_state->program_id, "M");
+    game_state->mvp_matrix_id = glGetUniformLocation(game_state->program_id, "MVP");
+    game_state->model_matrix_id = glGetUniformLocation(game_state->program_id, "M");
 
-    // Our vertices. Tree consecutive floats give a 3D vertex; Three consecutive vertices give a triangle.
-    // A cube has 6 faces with 2 triangles each, so this makes 6*2=12 triangles, and 12*3 vertices
-    const GLfloat g_vertex_buffer_data[] = {
+    // Initialise OpenGL buffers
+    //
+
+    const GLfloat vertex_buffer_data[] = {
        1.0f,  1.0f,  1.0f,
        1.0f,  1.0f, -1.0f,
       -1.0f,  1.0f, -1.0f,
@@ -109,12 +113,14 @@ main_loop(GameState *game_state)
       5, 7, 6
     };
 
+    game_state->n_indices = ARRAY_COUNT(index_buffer_data);
+
     glGenBuffers(1, &game_state->vertex_buffer);
     glGenBuffers(1, &game_state->index_buffer);
     glGenBuffers(1, &game_state->color_buffer);
 
     glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(g_vertex_buffer_data), g_vertex_buffer_data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_buffer_data), vertex_buffer_data, GL_STATIC_DRAW);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
@@ -122,6 +128,9 @@ main_loop(GameState *game_state)
 
   uint64_t frame_start_time = get_us();
   unsigned int frame_time = frame_start_time - game_state->game_start_time;
+
+  // User inputs
+  //
 
   ImGuiIO& io = ImGui::GetIO();
 
@@ -189,12 +198,18 @@ main_loop(GameState *game_state)
     camera_acceleration.z += io.MouseWheel;
   }
 
+  // Update camera direction
+  //
+
   camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
   camera_acceleration = vec4Multiply(camera_acceleration, -0.2);
 
   game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
   game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
   game_state->camera_direction_velocity = vec3Multiply(game_state->camera_direction_velocity, 0.8);
+
+  // Update camera position
+  //
 
   mat4x4 camera_orientation;
   mat4x4Identity(camera_orientation);
@@ -208,17 +223,23 @@ main_loop(GameState *game_state)
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
   game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
 
+  // ImGui window
+  //
+
   if (ImGui::Begin("Render parameters"))
   {
     ImGui::DragInt("FPS", &game_state->fps, 1, 1, 120);
 
     ImGui::DragFloat("FOV", &game_state->fov, 1, 1, 180);
     ImGui::DragFloat3("Camera position", (float *)&game_state->camera_position.v);
-    ImGui::DragFloat3("Camera direction", (float *)&game_state->camera_direction.v);
 
-    ImGui::DragFloat("Rotate X", &game_state->rotate_x_deg, 1, -360, 360);
-    ImGui::DragFloat("Rotate Y", &game_state->rotate_y_deg, 1, -360, 360);
-    ImGui::DragFloat("Rotate Z", &game_state->rotate_z_deg, 1, -360, 360);
+    vec3 camera_direction_deg = vec3Multiply(game_state->camera_direction, 180.0/M_PI);
+    if (ImGui::DragFloat3("Camera direction", (float *)&camera_direction_deg.v))
+    {
+      game_state->camera_direction = vec3Multiply(camera_direction_deg, M_PI/180.0);
+    }
+
+    ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
 
     ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
     ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
@@ -228,7 +249,7 @@ main_loop(GameState *game_state)
     for (int colour_n = 0; colour_n < 2; ++colour_n)
     {
       ImGui::PushID(colour_n);
-      vec4 c = {colours[colour_n].x, colours[colour_n].y, colours[colour_n].z, 0.0f};
+      vec4 c = {game_state->colours[colour_n].x, game_state->colours[colour_n].y, game_state->colours[colour_n].z, 0.0f};
       bool pushed = ImGui::ColorButton("##change colour", c);
       ImGui::PopID();
 
@@ -242,25 +263,25 @@ main_loop(GameState *game_state)
 
     if (ImGui::BeginPopup("Change Colour"))
     {
-      ImGui::ColorPicker3("##picker", (float*)&colours[game_state->colour_picker_n]);
+      ImGui::ColorPicker3("##picker", (float*)&game_state->colours[game_state->colour_picker_n]);
       ImGui::EndPopup();
     }
   }
 
   ImGui::End();
 
-  float frame_delta_us = 1000000.0/game_state->fps;
+  // Create projection, model, view matrices
+  //
 
-  // Projection matrix : 45� Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
   mat4x4 projection;
   mat4x4Perspective(projection, (game_state->fov*(M_PI/180.0f)), io.DisplaySize.x / io.DisplaySize.y, 0.1f, 100.0f);
-  // Model matrix : an identity matrix (model will be at the origin)
+
   mat4x4 model;
   mat4x4Identity(model);
-  mat4x4RotateY(model, game_state->rotate_y_deg*(M_PI/180.0f));
-  mat4x4RotateX(model, game_state->rotate_x_deg*(M_PI/180.0f));
-  mat4x4RotateZ(model, game_state->rotate_z_deg*(M_PI/180.0f));
-  // Camera matrix
+  mat4x4RotateY(model, game_state->terrain_rotation.y*(M_PI/180.0f));
+  mat4x4RotateX(model, game_state->terrain_rotation.x*(M_PI/180.0f));
+  mat4x4RotateZ(model, game_state->terrain_rotation.z*(M_PI/180.0f));
+
   mat4x4 view;
   mat4x4Identity(view);
   mat4x4Translate(view, vec3Multiply(game_state->camera_position, -1));
@@ -268,61 +289,58 @@ main_loop(GameState *game_state)
   mat4x4RotateX(view, game_state->camera_direction.x);
   mat4x4RotateZ(view, game_state->camera_direction.z);
 
-  // Our ModelViewProjection : multiplication of our 3 matrices
   mat4x4 view_projection;
-  mat4x4MultiplyMatrix(view_projection, view, projection); // Remember, matrix multiplication is the other way around
+  mat4x4MultiplyMatrix(view_projection, view, projection);
   mat4x4 model_view_projection;
-  mat4x4MultiplyMatrix(model_view_projection, model, view_projection); // Remember, matrix multiplication is the other way around
+  mat4x4MultiplyMatrix(model_view_projection, model, view_projection);
 
-  // One color for each vertex. They were generated randomly.
+  // Upload colours to colour buffer
+  //
+
+  // Duplicate the two colours, one colour per vertex
   int n_colours = 8;
-  GLfloat g_color_buffer_data[n_colours*3];
-
+  vec4 color_buffer_data[n_colours];
   for (int colour_n = 0; colour_n < n_colours; ++colour_n)
   {
-    g_color_buffer_data[(colour_n*3)+0] = colours[colour_n/4].x;
-    g_color_buffer_data[(colour_n*3)+1] = colours[colour_n/4].y;
-    g_color_buffer_data[(colour_n*3)+2] = colours[colour_n/4].z;
+    color_buffer_data[colour_n] = game_state->colours[int(colour_n*(2.0/n_colours))];
   }
 
   glBindBuffer(GL_ARRAY_BUFFER, game_state->color_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(g_color_buffer_data), g_color_buffer_data, GL_STATIC_DRAW);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(color_buffer_data), color_buffer_data, GL_STATIC_DRAW);
 
-  // Clear the screen
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  // Initialise buffer attributes
+  //
 
-  // Use our shader
-  glUseProgram(game_state->program_id);
-
-  // Send our transformation to the currently bound shader,
-  // in the "MVP" uniform
-  glUniformMatrix4fv(game_state->vp_matrix_id, 1, GL_FALSE, &model_view_projection[0][0]);
-
-  // 1rst attribute buffer : vertices
-  glEnableVertexAttribArray(0);
+  glEnableVertexAttribArray(VERTEX_POSITION_ATTRIBUTE);
   glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
   glVertexAttribPointer(
-    0,                  // attribute. No particular reason for 0, but must match the layout in the shader.
-    3,                  // size
-    GL_FLOAT,           // type
-    GL_FALSE,           // normalized?
-    0,                  // stride
-    (void*)0            // array buffer offset
+    VERTEX_POSITION_ATTRIBUTE,
+    3,         // size
+    GL_FLOAT,  // type
+    GL_FALSE,  // normalized?
+    0,         // stride
+    (void*)0   // array buffer offset
   );
 
-  // 2nd attribute buffer : colors
-  glEnableVertexAttribArray(1);
+  glEnableVertexAttribArray(VERTEX_COLOUR_ATTRIBUTE);
   glBindBuffer(GL_ARRAY_BUFFER, game_state->color_buffer);
   glVertexAttribPointer(
-    1,                                // attribute. No particular reason for 1, but must match the layout in the shader.
-    3,                                // size
-    GL_FLOAT,                         // type
-    GL_FALSE,                         // normalized?
-    0,                                // stride
-    (void*)0                          // array buffer offset
+    VERTEX_COLOUR_ATTRIBUTE,
+    4,         // size
+    GL_FLOAT,  // type
+    GL_FALSE,  // normalized?
+    0,         // stride
+    (void*)0   // array buffer offset
   );
 
-  // Draw the triangle !
+  // Render
+  //
+
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glUseProgram(game_state->program_id);
+
+  glUniformMatrix4fv(game_state->mvp_matrix_id, 1, GL_FALSE, &model_view_projection[0][0]);
+
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
 
   float bounces_per_us = game_state->bounces_per_second / 1000000.0;
@@ -357,14 +375,19 @@ main_loop(GameState *game_state)
     float offset = sin(frame_time * bounces_per_us * 2*M_PI + sine_offset) * game_state->bounce_height;
 
     mat4x4Translate(cube, {0, offset, 0});
-    glUniformMatrix4fv(game_state->m_matrix_id, 1, GL_FALSE, &cube[0][0]);
-    glDrawElements(GL_TRIANGLES, n_indices, GL_UNSIGNED_BYTE, 0); // 12*3 indices starting at 0 -> 12 triangles
+    glUniformMatrix4fv(game_state->model_matrix_id, 1, GL_FALSE, &cube[0][0]);
+    glDrawElements(GL_TRIANGLES, game_state->n_indices, GL_UNSIGNED_BYTE, 0);
   }
 
   glDisableVertexAttribArray(0);
   glDisableVertexAttribArray(1);
 
+  // Lock frame-rate
+  //
+
   game_state->last_frame_mouse = mouse_pos;
+
+  float frame_delta_us = 1000000.0/game_state->fps;
 
   uint64_t frame_end_time = get_us();
   float this_frame_delta = (float)(frame_end_time - frame_start_time);

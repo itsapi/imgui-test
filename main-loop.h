@@ -13,12 +13,14 @@ enum struct SineOffsetType
 
 struct GameState
 {
- 	GLuint program_id;
-  GLuint vp_matrix_id;
-	GLuint m_matrix_id;
+  GLuint program_id;
+  GLuint mvp_matrix_id;
+  GLuint model_matrix_id;
   GLuint vertex_buffer;
   GLuint index_buffer;
   GLuint color_buffer;
+
+  int n_indices;
 
   bool init;
 
@@ -26,14 +28,13 @@ struct GameState
   uint64_t game_start_time;
 
   float fov;
-  float rotate_x_deg;
-  float rotate_y_deg;
-  float rotate_z_deg;
+  vec3 terrain_rotation;
   SineOffsetType sine_offset_type;
   float bounces_per_second;
   float bounce_height;
   float oscillation_frequency;
 
+  vec4 colours[2];
   int colour_picker_n;
 
   vec2 last_frame_mouse;
