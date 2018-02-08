@@ -25,10 +25,10 @@ endif
 
 EXE = $(BUILD_DIR)/imgui_test.out
 
-CXXSRCS = $(shell find -type f -name '*.cpp')
+CXXSRCS = $(shell find . -type f -name '*.cpp')
 CXXOBJS = $(CXXSRCS:./%.cpp=$(BUILD_DIR)/%.o)
 
-CSRCS += $(shell find -type f -name '*.c')
+CSRCS += $(shell find . -type f -name '*.c')
 COBJS = $(CSRCS:./%.c=$(BUILD_DIR)/%.o)
 
 UNAME_S := $(shell uname -s)
