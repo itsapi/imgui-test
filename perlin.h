@@ -1,1 +1,5 @@
-float perlin(float x, float y);
+#include "ccVector.h"
+
+
+float
+perlin(vec2 position, float period);

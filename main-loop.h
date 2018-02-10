@@ -43,6 +43,10 @@ struct GameState
 
   vec2 terrain_dim;
 
+  int n_perlins;
+  int perlin_periods[16];
+  float perlin_amplitudes[16];
+
   float fov;
   vec3 terrain_rotation;
   SineOffsetType sine_offset_type;

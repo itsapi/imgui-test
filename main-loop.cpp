@@ -125,7 +125,15 @@ main_loop(GameState *game_state)
     game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
     game_state->colours[1] = {0.2f, 0.1f, 0.1f, 1};
 
-    game_state->terrain_dim = {10, 10};
+    game_state->terrain_dim = {50, 50};
+    game_state->n_perlins = 0;
+    for (int perlin_n = 0;
+         perlin_n < ARRAY_COUNT(game_state->perlin_periods);
+         ++perlin_n)
+    {
+      game_state->perlin_periods[perlin_n] = 16;
+      game_state->perlin_amplitudes[perlin_n] = 1;
+    }
 
     game_state->light_position = {0, 10, 0};
 
@@ -469,12 +477,23 @@ main_loop(GameState *game_state)
       game_state->camera_direction_velocity = {};
     }
 
+    ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
+
     ImGui::DragFloat2("Terrain dim", (float *)&game_state->terrain_dim.v);
     ImGui::Value("N cubes", game_state->terrain_dim.x * game_state->terrain_dim.y);
 
-    ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
-
     ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
+
+    ImGui::DragInt("Number of Perlins", &game_state->n_perlins, 0.2, 0, ARRAY_COUNT(game_state->perlin_periods));
+    for (int perlin_n = 0;
+         perlin_n < game_state->n_perlins;
+         ++perlin_n)
+    {
+      ImGui::PushID(perlin_n);
+      ImGui::DragInt("Perlin period", &game_state->perlin_periods[perlin_n], 1, 1, 1024);
+      ImGui::DragFloat("Perlin amplitude", &game_state->perlin_amplitudes[perlin_n], 0.1, 0, 1024);
+      ImGui::PopID();
+    }
 
     ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
     ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
@@ -643,7 +662,15 @@ main_loop(GameState *game_state)
     mat4x4 cube;
     mat4x4Identity(cube);
     mat4x4Scale(cube, 0.5);
-    mat4x4Translate(cube, {translation.x, perlin(translation.x, translation.y), translation.y});
+    mat4x4Translate(cube, {translation.x, 0, translation.y});
+
+    for (int perlin_n = 0;
+         perlin_n < game_state->n_perlins;
+         ++perlin_n)
+    {
+      float terrain_offset = perlin(translation, game_state->perlin_periods[perlin_n]);
+      mat4x4Translate(cube, {0, game_state->perlin_amplitudes[perlin_n] * terrain_offset, 0});
+    }
 
     float sine_offset = 0;
     switch (game_state->sine_offset_type)
