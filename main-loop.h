@@ -15,9 +15,11 @@ struct GameState
 {
   GLint program_id;
 
-  GLint mvp_matrix_uniform;
+  GLint world_view_projection_matrix_uniform;
   GLint model_matrix_uniform;
   GLint light_position_uniform;
+  GLint light_colour_uniform;
+  GLint ambient_light_uniform;
   GLint grass_texture_uniform;
   GLint normal_map_texture_uniform;
 
@@ -58,6 +60,9 @@ struct GameState
   int colour_picker_n;
 
   vec3 light_position;
+  vec3 light_colour;
+
+  vec3 ambient_light_colour;
 
   vec2 last_frame_mouse;
 

@@ -123,7 +123,7 @@ main_loop(GameState *game_state)
 
     game_state->colour_picker_n = 0;
     game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
-    game_state->colours[1] = {0.2f, 0.1f, 0.1f, 1};
+    game_state->colours[1] = {0.5f, 0.5f, 0.5f, 1};
 
     game_state->terrain_dim = {50, 50};
     game_state->n_perlins = 0;
@@ -136,6 +136,8 @@ main_loop(GameState *game_state)
     }
 
     game_state->light_position = {0, 10, 0};
+    game_state->light_colour = {1, 1, 1};
+    game_state->ambient_light_colour = {0.3, 0.3, 0.3};
 
     game_state->init = true;
 
@@ -153,9 +155,11 @@ main_loop(GameState *game_state)
 
     game_state->program_id = LoadShaders( "TransformVertexShader.vertexshader", "ColorFragmentShader.fragmentshader" );
 
-    game_state->mvp_matrix_uniform = glGetUniformLocation(game_state->program_id, "MVP");
-    game_state->model_matrix_uniform = glGetUniformLocation(game_state->program_id, "M");
+    game_state->world_view_projection_matrix_uniform = glGetUniformLocation(game_state->program_id, "WORLD_VIEW_PROJECTION");
+    game_state->model_matrix_uniform = glGetUniformLocation(game_state->program_id, "MODEL");
     game_state->light_position_uniform = glGetUniformLocation(game_state->program_id, "LIGHT_POSITION");
+    game_state->light_colour_uniform = glGetUniformLocation(game_state->program_id, "LIGHT_COLOUR");
+    game_state->ambient_light_uniform = glGetUniformLocation(game_state->program_id, "AMBIENT_LIGHT_COLOUR");
     game_state->grass_texture_uniform = glGetUniformLocation(game_state->program_id, "GRASS_TEXTURE");
     game_state->normal_map_texture_uniform = glGetUniformLocation(game_state->program_id, "NORMAL_MAP_TEXTURE");
 
@@ -479,6 +483,26 @@ main_loop(GameState *game_state)
 
     ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
 
+    if (ImGui::ColorButton("Light colour", {game_state->light_colour.x, game_state->light_colour.y, game_state->light_colour.z, 1}))
+    {
+      ImGui::OpenPopup("Change light colour");
+    }
+    if (ImGui::BeginPopup("Change light colour"))
+    {
+      ImGui::ColorPicker3("##light colour picker", (float *)&game_state->light_colour.v);
+      ImGui::EndPopup();
+    }
+
+    if (ImGui::ColorButton("Ambient light colour", {game_state->ambient_light_colour.x, game_state->ambient_light_colour.y, game_state->ambient_light_colour.z, 1}))
+    {
+      ImGui::OpenPopup("Change ambient light colour");
+    }
+    if (ImGui::BeginPopup("Change ambient light colour"))
+    {
+      ImGui::ColorPicker3("##ambient light colour picker", (float *)&game_state->ambient_light_colour.v);
+      ImGui::EndPopup();
+    }
+
     ImGui::DragFloat2("Terrain dim", (float *)&game_state->terrain_dim.v);
     ImGui::Value("N cubes", game_state->terrain_dim.x * game_state->terrain_dim.y);
 
@@ -524,17 +548,14 @@ main_loop(GameState *game_state)
 
   ImGui::End();
 
-  // Create projection, model, view matrices
+  // Create world, view, projection matrices
   //
 
-  mat4x4 projection;
-  mat4x4Perspective(projection, (game_state->fov*(M_PI/180.0f)), io.DisplaySize.x / io.DisplaySize.y, 0.1f, 100000.0f);
-
-  mat4x4 model;
-  mat4x4Identity(model);
-  mat4x4RotateY(model, game_state->terrain_rotation.y*(M_PI/180.0f));
-  mat4x4RotateX(model, game_state->terrain_rotation.x*(M_PI/180.0f));
-  mat4x4RotateZ(model, game_state->terrain_rotation.z*(M_PI/180.0f));
+  mat4x4 world;
+  mat4x4Identity(world);
+  mat4x4RotateY(world, game_state->terrain_rotation.y*(M_PI/180.0f));
+  mat4x4RotateX(world, game_state->terrain_rotation.x*(M_PI/180.0f));
+  mat4x4RotateZ(world, game_state->terrain_rotation.z*(M_PI/180.0f));
 
   mat4x4 view;
   mat4x4Identity(view);
@@ -543,10 +564,13 @@ main_loop(GameState *game_state)
   mat4x4RotateX(view, game_state->camera_direction.x);
   mat4x4RotateZ(view, game_state->camera_direction.z);
 
+  mat4x4 projection;
+  mat4x4Perspective(projection, (game_state->fov*(M_PI/180.0f)), io.DisplaySize.x / io.DisplaySize.y, 0.1f, 100000.0f);
+
   mat4x4 view_projection;
   mat4x4MultiplyMatrix(view_projection, view, projection);
-  mat4x4 model_view_projection;
-  mat4x4MultiplyMatrix(model_view_projection, model, view_projection);
+  mat4x4 world_view_projection;
+  mat4x4MultiplyMatrix(world_view_projection, world, view_projection);
 
   // Upload colours to colour buffer
   //
@@ -637,8 +661,10 @@ main_loop(GameState *game_state)
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glUseProgram(game_state->program_id);
 
-  glUniformMatrix4fv(game_state->mvp_matrix_uniform, 1, GL_FALSE, &model_view_projection[0][0]);
+  glUniformMatrix4fv(game_state->world_view_projection_matrix_uniform, 1, GL_FALSE, &world_view_projection[0][0]);
   glUniform3fv(game_state->light_position_uniform, 1, (float *)&game_state->light_position.v);
+  glUniform3fv(game_state->light_colour_uniform, 1, (float *)&game_state->light_colour.v);
+  glUniform3fv(game_state->ambient_light_uniform, 1, (float *)&game_state->ambient_light_colour.v);
 
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, game_state->grass_texture_id);

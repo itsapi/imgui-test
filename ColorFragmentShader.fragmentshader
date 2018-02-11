@@ -11,18 +11,27 @@ out vec3 colour;
 
 uniform sampler2D GRASS_TEXTURE;
 uniform sampler2D NORMAL_MAP_TEXTURE;
+uniform vec3 AMBIENT_LIGHT_COLOUR;
+uniform vec3 LIGHT_COLOUR;
 
 void main()
 {
   vec4 texture_colour = texture(GRASS_TEXTURE, UV);
   texture_colour = vec4(texture_colour.b, texture_colour.g, texture_colour.r, texture_colour.a);
 
+  vec3 surface_colour = texture_colour.rgb * fragment_colour.rgb;
+
   vec3 map_normal_colour = normalize(texture(NORMAL_MAP_TEXTURE, UV).rgb);
   vec3 map_normal = (map_normal_colour*2) - 1;
 
   vec3 normal = surface_normal;// * map_normal;
 
-  colour = dot(light_direction, normal) * texture_colour.rgb * fragment_colour.rgb;
+  vec3 ambient_light_colour = AMBIENT_LIGHT_COLOUR;
+
+  float diffuse_light = clamp(dot(light_direction, normal), 0, 1);
+  vec3 diffuse_light_colour = diffuse_light * LIGHT_COLOUR;
+
+  colour = (ambient_light_colour + diffuse_light_colour) * surface_colour;
 
   // colour = (fragment_colour.rgb + 1)*0.5;
 
