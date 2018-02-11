@@ -366,48 +366,52 @@ main_loop(GameState *game_state)
 
   ImGuiIO& io = ImGui::GetIO();
 
-  vec3 camera_rotation_acceleration = {};
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
-  {
-    camera_rotation_acceleration.y += 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_LEFT))
-  {
-    camera_rotation_acceleration.y -= 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_END))
-  {
-    camera_rotation_acceleration.x += 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_HOME))
-  {
-    camera_rotation_acceleration.x -= 1;
-  }
-
+  vec3 camera_rotation_acceleration = {0, 0, 0};
   vec4 camera_acceleration = {0, 0, 0, 1};
-  if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT) | ImGui::IsKeyDown(SDL_SCANCODE_A))
+
+  if (!io.WantCaptureKeyboard)
   {
-    camera_acceleration.x += 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP) | ImGui::IsKeyDown(SDL_SCANCODE_D))
-  {
-    camera_acceleration.x -= 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_UP) | ImGui::IsKeyDown(SDL_SCANCODE_W))
-  {
-    camera_acceleration.z += 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_DOWN) | ImGui::IsKeyDown(SDL_SCANCODE_S))
-  {
-    camera_acceleration.z -= 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL) | ImGui::IsKeyDown(SDL_SCANCODE_Q))
-  {
-    camera_acceleration.y += 1;
-  }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT) | ImGui::IsKeyDown(SDL_SCANCODE_E))
-  {
-    camera_acceleration.y -= 1;
+    if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
+    {
+      camera_rotation_acceleration.y += 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_LEFT))
+    {
+      camera_rotation_acceleration.y -= 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_END))
+    {
+      camera_rotation_acceleration.x += 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_HOME))
+    {
+      camera_rotation_acceleration.x -= 1;
+    }
+
+    if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT) | ImGui::IsKeyDown(SDL_SCANCODE_A))
+    {
+      camera_acceleration.x += 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP) | ImGui::IsKeyDown(SDL_SCANCODE_D))
+    {
+      camera_acceleration.x -= 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_UP) | ImGui::IsKeyDown(SDL_SCANCODE_W))
+    {
+      camera_acceleration.z += 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_DOWN) | ImGui::IsKeyDown(SDL_SCANCODE_S))
+    {
+      camera_acceleration.z -= 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL) | ImGui::IsKeyDown(SDL_SCANCODE_Q))
+    {
+      camera_acceleration.y += 1;
+    }
+    if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT) | ImGui::IsKeyDown(SDL_SCANCODE_E))
+    {
+      camera_acceleration.y -= 1;
+    }
   }
 
   vec2 mouse_pos = ImGui::GetMousePos();

@@ -44,6 +44,8 @@ int main(int, char**)
     // ImGui::StyleColorsClassic();
     ImGui::StyleColorsDark();
 
+    ImGui::GetIO().NavFlags |= ImGuiNavFlags_EnableKeyboard;
+
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
     // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
