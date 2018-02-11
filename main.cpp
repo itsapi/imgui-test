@@ -35,6 +35,8 @@ int main(int, char**)
     SDL_GLContext glcontext = SDL_GL_CreateContext(window);
     gl3wInit();
 
+    ImGui::CreateContext();
+
     // Setup ImGui binding
     ImGui_ImplSdlGL3_Init(window);
 
@@ -79,7 +81,7 @@ int main(int, char**)
         }
         ImGui_ImplSdlGL3_NewFrame(window);
 
-        if (ImGui::IsKeyDown(SDLK_ESCAPE))
+        if (ImGui::IsKeyDown(SDL_SCANCODE_ESCAPE))
         {
             done = true;
         }
@@ -99,6 +101,8 @@ int main(int, char**)
 
     // Cleanup
     ImGui_ImplSdlGL3_Shutdown();
+    ImGui::DestroyContext();
+
     SDL_GL_DeleteContext(glcontext);
     SDL_DestroyWindow(window);
     SDL_Quit();

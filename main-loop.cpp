@@ -385,27 +385,27 @@ main_loop(GameState *game_state)
   }
 
   vec4 camera_acceleration = {0, 0, 0, 1};
-  if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT) | ImGui::IsKeyDown(SDLK_a))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT) | ImGui::IsKeyDown(SDL_SCANCODE_A))
   {
     camera_acceleration.x += 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP) | ImGui::IsKeyDown(SDLK_d))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP) | ImGui::IsKeyDown(SDL_SCANCODE_D))
   {
     camera_acceleration.x -= 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_UP) | ImGui::IsKeyDown(SDLK_w))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_UP) | ImGui::IsKeyDown(SDL_SCANCODE_W))
   {
     camera_acceleration.z += 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_DOWN) | ImGui::IsKeyDown(SDLK_s))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_DOWN) | ImGui::IsKeyDown(SDL_SCANCODE_S))
   {
     camera_acceleration.z -= 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL) | ImGui::IsKeyDown(SDLK_q))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL) | ImGui::IsKeyDown(SDL_SCANCODE_Q))
   {
     camera_acceleration.y += 1;
   }
-  if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT) | ImGui::IsKeyDown(SDLK_e))
+  if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT) | ImGui::IsKeyDown(SDL_SCANCODE_E))
   {
     camera_acceleration.y -= 1;
   }
