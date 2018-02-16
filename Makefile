@@ -39,9 +39,9 @@ ifeq ($(UNAME_S), Linux) #LINUX
 	LIBS = -lGL -ldl `sdl2-config --libs`
 
 	CXXFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
-	CXXFLAGS += -Werror -Wformat -std=c++14
+	CXXFLAGS += -Werror -Wformat -std=c++14 -Ofast
 	CXXFLAGS += $(DEBUG_FLAGS)
-	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
+	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags` -Ofast
 	CFLAGS += $(DEBUG_FLAGS)
 endif
 
@@ -50,9 +50,9 @@ ifeq ($(UNAME_S), Darwin) #APPLE
 	LIBS = -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo `sdl2-config --libs`
 
 	CXXFLAGS = -I. -Ilibs/gl3w -I/usr/local/include `sdl2-config --cflags`
-	CXXFLAGS += -Werror -Wformat -std=c++14
+	CXXFLAGS += -Werror -Wformat -std=c++14 -Ofast
 	CXXFLAGS += $(DEBUG_FLAGS)
-	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
+	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags` -Ofast
 	CFLAGS += $(DEBUG_FLAGS)
 endif
 
@@ -61,9 +61,9 @@ ifeq ($(findstring MINGW,$(UNAME_S)),MINGW)
   LIBS = -lgdi32 -lopengl32 -limm32 `pkg-config --static --libs sdl2`
 
   CXXFLAGS = -Ilibs/gl3w `pkg-config --cflags sdl2`
-  CXXFLAGS += -Werror -Wformat -std=c++14
+  CXXFLAGS += -Werror -Wformat -std=c++14 -Ofast
 	CXXFLAGS += $(DEBUG_FLAGS)
-	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags`
+	CFLAGS = -I. -Ilibs/gl3w `sdl2-config --cflags` -Ofast
 	CFLAGS += $(DEBUG_FLAGS)
 endif
 
