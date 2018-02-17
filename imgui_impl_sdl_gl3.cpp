@@ -401,9 +401,9 @@ void ImGui_ImplSdlGL3_NewFrame(SDL_Window* window)
     for (int n = 0; n < IM_ARRAYSIZE(io.MouseDown); n++)
         any_mouse_button_down |= io.MouseDown[n];
     if (any_mouse_button_down && (SDL_GetWindowFlags(window) & SDL_WINDOW_MOUSE_CAPTURE) == 0)
-        SDL_CaptureMouse(SDL_TRUE);
+        // SDL_CaptureMouse(SDL_TRUE);
     if (!any_mouse_button_down && (SDL_GetWindowFlags(window) & SDL_WINDOW_MOUSE_CAPTURE) != 0)
-        SDL_CaptureMouse(SDL_FALSE);
+        // SDL_CaptureMouse(SDL_FALSE);
 #else
     if ((SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) != 0)
         io.MousePos = ImVec2((float)mx, (float)my);

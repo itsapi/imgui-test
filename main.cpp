@@ -44,8 +44,6 @@ int main(int, char**)
     // ImGui::StyleColorsClassic();
     ImGui::StyleColorsDark();
 
-    ImGui::GetIO().NavFlags |= ImGuiNavFlags_EnableKeyboard;
-
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
     // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
@@ -70,6 +68,8 @@ int main(int, char**)
     bool done = false;
     while (!done)
     {
+        ImVec2 mouse_delta = {0, 0};
+
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
         // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
@@ -80,6 +80,8 @@ int main(int, char**)
             ImGui_ImplSdlGL3_ProcessEvent(&event);
             if (event.type == SDL_QUIT)
                 done = true;
+            else if (event.type == SDL_MOUSEMOTION)
+                mouse_delta = {(float)event.motion.xrel, (float)event.motion.yrel};
         }
         ImGui_ImplSdlGL3_NewFrame(window);
 
@@ -93,7 +95,7 @@ int main(int, char**)
         glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        main_loop(&game_state);
+        main_loop(&game_state, mouse_delta);
 
         ImGui::Render();
         SDL_GL_SwapWindow(window);

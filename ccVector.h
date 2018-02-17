@@ -198,7 +198,7 @@ typedef float ccvType;
 
 #define CCV_DEFINE_VEC_NORMALIZE(dim) \
   static inline CCV_VEC_TYPENAME(dim) CCV_FUNC_VEC_NORMALIZE(dim)(CCV_VEC_TYPENAME(dim) v) { \
-    return CCV_FUNC_VEC_MULTIPLY(dim)(v, 1 / CCV_FUNC_VEC_LENGTH(dim)(v)); \
+    return CCV_FUNC_VEC_MULTIPLY(dim)(v, 1.0 / CCV_FUNC_VEC_LENGTH(dim)(v)); \
   }
 
 #define CCV_DEFINE_VEC_REFLECT(dim) \

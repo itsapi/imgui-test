@@ -100,7 +100,7 @@ _opengl_print_errors(const char *file, int line)
 
 
 void
-main_loop(GameState *game_state)
+main_loop(GameState *game_state, vec2 mouse_delta)
 {
   if (!game_state->init)
   {
@@ -116,17 +116,19 @@ main_loop(GameState *game_state)
     game_state->oscillation_frequency = 0;
     game_state->bounce_height = 1;
     game_state->camera_velocity = {};
-    game_state->camera_position = {15.0f,10.0f,15.0f};
+    game_state->camera_position = {2.0f,2.0f,2.0f};
     game_state->camera_direction_velocity = {};
     game_state->camera_direction = { (float)atan2(game_state->camera_position.y, game_state->camera_position.z),
                                     -(float)atan2(game_state->camera_position.x, game_state->camera_position.z), 0.0f};
+    game_state->player_speed = 0.5; // m/s
+    game_state->drag_radians_per_second = .5*M_PI;
 
     game_state->colour_picker_n = 0;
     game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
     game_state->colours[1] = {0.5f, 0.5f, 0.5f, 1};
 
-    game_state->terrain_dim = {50, 50};
-    game_state->n_perlins = 0;
+    game_state->user_terrain_dim = {2, 2};
+    game_state->n_perlins = 15;
     for (int perlin_n = 0;
          perlin_n < ARRAY_COUNT(game_state->perlin_periods);
          ++perlin_n)
@@ -135,9 +137,14 @@ main_loop(GameState *game_state)
       game_state->perlin_amplitudes[perlin_n] = 1;
     }
 
+    game_state->terrain_gen_id = 0;
+    generate_terrain(game_state);
+
     game_state->light_position = {0, 10, 0};
     game_state->light_colour = {1, 1, 1};
     game_state->ambient_light_colour = {0.3, 0.3, 0.3};
+
+    game_state->capture_mouse = true;
 
     game_state->init = true;
 
@@ -371,74 +378,56 @@ main_loop(GameState *game_state)
 
   if (!io.WantCaptureKeyboard)
   {
-    if (ImGui::IsKeyDown(SDL_SCANCODE_RIGHT))
+    if (ImGui::IsKeyPressed(SDL_SCANCODE_Q))
     {
-      camera_rotation_acceleration.y += 1;
+      game_state->capture_mouse = !game_state->capture_mouse;
     }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_LEFT))
-    {
-      camera_rotation_acceleration.y -= 1;
-    }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_END))
-    {
-      camera_rotation_acceleration.x += 1;
-    }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_HOME))
-    {
-      camera_rotation_acceleration.x -= 1;
-    }
-
-    if (ImGui::IsKeyDown(SDL_SCANCODE_INSERT) | ImGui::IsKeyDown(SDL_SCANCODE_A))
+    if (ImGui::IsKeyDown(SDL_SCANCODE_D))
     {
       camera_acceleration.x += 1;
     }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_PAGEUP) | ImGui::IsKeyDown(SDL_SCANCODE_D))
+    if (ImGui::IsKeyDown(SDL_SCANCODE_A))
     {
       camera_acceleration.x -= 1;
     }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_UP) | ImGui::IsKeyDown(SDL_SCANCODE_W))
+    if (ImGui::IsKeyDown(SDL_SCANCODE_S))
     {
       camera_acceleration.z += 1;
     }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_DOWN) | ImGui::IsKeyDown(SDL_SCANCODE_S))
+    if (ImGui::IsKeyDown(SDL_SCANCODE_W))
     {
       camera_acceleration.z -= 1;
     }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_RCTRL) | ImGui::IsKeyDown(SDL_SCANCODE_Q))
+    if (ImGui::IsKeyDown(SDL_SCANCODE_SPACE) && game_state->camera_position.y <= 1)
     {
-      camera_acceleration.y += 1;
-    }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_RSHIFT) | ImGui::IsKeyDown(SDL_SCANCODE_E))
-    {
-      camera_acceleration.y -= 1;
+      camera_acceleration.y += 30;
     }
   }
 
-  vec2 mouse_pos = ImGui::GetMousePos();
-  if ((mouse_pos.x < 0 || mouse_pos.x >= io.DisplaySize.x) ||
-      (mouse_pos.y < 0 || mouse_pos.y >= io.DisplaySize.y) ||
-      io.WantCaptureMouse)
+  SDL_SetRelativeMouseMode(game_state->capture_mouse ? SDL_TRUE : SDL_FALSE);
+
+  if (game_state->capture_mouse)
   {
-    mouse_pos = game_state->last_frame_mouse;
+    vec2 drag_delta = vec2Multiply(mouse_delta, game_state->last_frame_total * game_state->drag_radians_per_second / 1000000.0);
+    game_state->camera_direction.x += drag_delta.y;
+    game_state->camera_direction.x = fmin(fmax(game_state->camera_direction.x, -0.5*M_PI), 0.5*M_PI);
+    game_state->camera_direction.y += drag_delta.x;
   }
 
-  if (!io.WantCaptureMouse)
+  vec2 camera_acceleration_xz = {camera_acceleration.x, camera_acceleration.z};
+  float camera_acceleration_xz_length = vec2Length(camera_acceleration_xz);
+  if (camera_acceleration_xz_length > 0)
   {
-    if (ImGui::IsMouseDragging())
-    {
-      vec2 mouse_drag_delta = vec2Subtract(mouse_pos, game_state->last_frame_mouse);
-      game_state->camera_direction.y += -(mouse_drag_delta.x / io.DisplaySize.x);
-      game_state->camera_direction.x += -(mouse_drag_delta.y / io.DisplaySize.y);
-    }
-
-    camera_acceleration.z += io.MouseWheel;
+    vec2 normalized_camera_acceleration_xz = vec2Multiply(camera_acceleration_xz, 1.0/camera_acceleration_xz_length);
+    camera_acceleration.x = normalized_camera_acceleration_xz.x;
+    camera_acceleration.z = normalized_camera_acceleration_xz.y;
   }
+  camera_acceleration = vec4Multiply(camera_acceleration, game_state->last_frame_total * game_state->player_speed / 1000000.0);
 
   // Update camera direction
   //
 
-  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0*M_PI);
-  camera_acceleration = vec4Multiply(camera_acceleration, -0.2);
+  camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0 * M_PI);
 
   game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
   game_state->camera_direction = vec3Add(game_state->camera_direction, game_state->camera_direction_velocity);
@@ -447,17 +436,35 @@ main_loop(GameState *game_state)
   // Update camera position
   //
 
-  mat4x4 camera_orientation;
-  mat4x4Identity(camera_orientation);
-  mat4x4RotateZ(camera_orientation, -game_state->camera_direction.z);
-  mat4x4RotateX(camera_orientation, -game_state->camera_direction.x);
-  mat4x4RotateY(camera_orientation, -game_state->camera_direction.y);
+  mat4x4 camera_y_orientation;
+  mat4x4Identity(camera_y_orientation);
+  mat4x4RotateY(camera_y_orientation, -game_state->camera_direction.y);
 
-  vec3 camera_world_acceleration = mat4x4MultiplyVector(camera_orientation, camera_acceleration).xyz;
+  vec3 camera_gravity_acceleration = {0, 0, 0};
+
+  // Gravity
+  float surface_height = 0.5;
+  float player_feet = -4;
+
+  if (game_state->camera_position.y + player_feet > surface_height)
+  {
+    camera_gravity_acceleration.y = -9.8;
+  }
+  else if (game_state->camera_position.y + player_feet <= surface_height)
+  {
+    game_state->camera_velocity.y = 0;
+    game_state->camera_position.y = surface_height - player_feet;
+  }
+
+  vec3 camera_gravity_acceleration_frame = vec3Multiply(camera_gravity_acceleration, game_state->last_frame_total/1000000.0);
+
+  vec3 camera_world_acceleration = mat4x4MultiplyVector(camera_y_orientation, camera_acceleration).xyz;
+  camera_world_acceleration = vec3Add(camera_world_acceleration, camera_gravity_acceleration_frame);
 
   game_state->camera_velocity = vec3Add(game_state->camera_velocity, camera_world_acceleration);
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
-  game_state->camera_velocity = vec3Multiply(game_state->camera_velocity, 0.8);
+  game_state->camera_position.x = game_state->camera_position.x * 0.8;
+  game_state->camera_position.z = game_state->camera_position.z * 0.8;
 
   // ImGui window
   //
@@ -476,6 +483,7 @@ main_loop(GameState *game_state)
     {
       game_state->camera_direction = vec3Multiply(camera_direction_deg, M_PI/180.0);
     }
+    ImGui::Text("Camera Velocity: %f  %f  %f", game_state->camera_velocity.x, game_state->camera_velocity.y, game_state->camera_velocity.z);
 
     if (ImGui::Button("Top down view"))
     {
@@ -484,6 +492,9 @@ main_loop(GameState *game_state)
       game_state->camera_velocity = {};
       game_state->camera_direction_velocity = {};
     }
+
+    ImGui::DragFloat("Player speed", &game_state->player_speed);
+    ImGui::DragFloat("Mouse speed", &game_state->drag_radians_per_second, M_PI/180.0);
 
     ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
 
@@ -727,8 +738,6 @@ main_loop(GameState *game_state)
 
   // Lock frame-rate
   //
-
-  game_state->last_frame_mouse = mouse_pos;
 
   float frame_delta_us = 1000000.0/game_state->fps;
 

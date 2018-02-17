@@ -37,6 +37,7 @@ struct GameState
   int n_indices;
 
   bool init;
+  bool capture_mouse;
 
   int fps;
   uint64_t game_start_time;
@@ -66,6 +67,9 @@ struct GameState
 
   vec2 last_frame_mouse;
 
+  float player_speed;
+  float drag_radians_per_second;
+
   vec3 camera_velocity;
   vec3 camera_position;
 
@@ -74,10 +78,10 @@ struct GameState
 };
 
 void
-main_loop(GameState *game_stae);
+main_loop(GameState *game_state, vec2  mouse_delta);
 
 void
-shutdown(GameState *game_stae);
+shutdown(GameState *game_state);
 
 
 #endif
