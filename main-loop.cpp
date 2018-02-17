@@ -99,6 +99,105 @@ _opengl_print_errors(const char *file, int line)
 }
 
 
+TerrainChunk *
+get_terrain_chunk_slot(GameState *game_state, vec2 position)
+{
+  int hash = 0;
+  hash = ((hash<<5)^(hash>>29))^(int)position.x;
+  hash = ((hash<<7)^(hash>>31))^(int)position.y;
+  hash = (hash % 3203) % ARRAY_COUNT(game_state->terrain_chunk_hashmap);
+  return game_state->terrain_chunk_hashmap + hash;
+}
+
+
+TerrainChunk &
+get_terrain_chunk(GameState *game_state, vec2 position)
+{
+  TerrainChunk *initial_slot = get_terrain_chunk_slot(game_state, position);
+  TerrainChunk *slot = initial_slot;
+  while (slot->terrain_gen_id == game_state->terrain_gen_id && !vec2Equal(slot->position, position))
+  {
+    slot++;
+    if (slot == game_state->terrain_chunk_hashmap + ARRAY_COUNT(game_state->terrain_chunk_hashmap))
+    {
+      slot = game_state->terrain_chunk_hashmap;
+    }
+    assert(slot != initial_slot);
+  }
+
+  if (slot->terrain_gen_id != game_state->terrain_gen_id)
+  {
+    slot->position = position;
+    slot->terrain_gen_id = game_state->terrain_gen_id;
+  }
+  else
+  {
+    assert(vec2Equal(slot->position, position));
+  }
+
+  return *slot;
+}
+
+
+float &
+get_height_from_chunk(TerrainChunk &terrain_chunk, vec2 position)
+{
+  return terrain_chunk.height_map[int(position.y) * CHUNK_SIZE + int(position.x)];
+}
+
+
+void
+generate_terrain(GameState *game_state)
+{
+  game_state->terrain_gen_id++;
+  game_state->current_terrain_dim = game_state->user_terrain_dim;
+
+  vec2 chunk_position;
+  for (chunk_position.x = -game_state->current_terrain_dim.x*0.5;
+       chunk_position.x < game_state->current_terrain_dim.x*0.5;
+       ++chunk_position.x)
+  for (chunk_position.y = -game_state->current_terrain_dim.y*0.5;
+       chunk_position.y < game_state->current_terrain_dim.y*0.5;
+       ++chunk_position.y)
+  {
+    TerrainChunk &terrain_chunk = get_terrain_chunk(game_state, chunk_position);
+    get_terrain_chunk(game_state, chunk_position);
+
+    vec2 translation;
+    for (translation.x = 0;
+         translation.x < CHUNK_SIZE;
+         ++translation.x)
+    for (translation.y = 0;
+         translation.y < CHUNK_SIZE;
+         ++translation.y)
+    {
+      vec2 global_position = vec2Add(vec2Multiply(chunk_position, (float)CHUNK_SIZE), translation);
+      float terrain_offset = 0;
+      for (int perlin_n = 0;
+           perlin_n < game_state->n_perlins;
+           ++perlin_n)
+      {
+        terrain_offset += game_state->perlin_amplitudes[perlin_n] * perlin(global_position, game_state->perlin_periods[perlin_n]);
+      }
+      get_height_from_chunk(terrain_chunk, translation) = terrain_offset;
+    }
+  }
+
+  printf("Terrain generated\n");
+}
+
+
+float
+get_terrain_height_for_global_position(GameState *game_state, vec2 position)
+{
+  vec2 chunk_position = vec2Multiply(position, 1.0/CHUNK_SIZE);
+  chunk_position = {(float)int(chunk_position.x), (float)int(chunk_position.y)};
+  vec2 chunk_offset = vec2Subtract(position, vec2Multiply(chunk_position, CHUNK_SIZE));
+
+  return get_height_from_chunk(get_terrain_chunk(game_state, chunk_position), chunk_offset);
+}
+
+
 void
 main_loop(GameState *game_state, vec2 mouse_delta)
 {
@@ -443,7 +542,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   vec3 camera_gravity_acceleration = {0, 0, 0};
 
   // Gravity
-  float surface_height = 0.5;
+  float surface_height = get_terrain_height_for_global_position(game_state, {game_state->camera_position.x, game_state->camera_position.z}) + 0.5;
   float player_feet = -4;
 
   if (game_state->camera_position.y + player_feet > surface_height)
@@ -518,10 +617,15 @@ main_loop(GameState *game_state, vec2 mouse_delta)
       ImGui::EndPopup();
     }
 
-    ImGui::DragFloat2("Terrain dim", (float *)&game_state->terrain_dim.v);
-    ImGui::Value("N cubes", game_state->terrain_dim.x * game_state->terrain_dim.y);
+    ImGui::DragFloat2("Terrain dim", (float *)&game_state->user_terrain_dim.v);
+    ImGui::Value("N cubes", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y);
 
     ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
+
+    if (ImGui::Button("Re-generate terrain"))
+    {
+      generate_terrain(game_state);
+    }
 
     ImGui::DragInt("Number of Perlins", &game_state->n_perlins, 0.2, 0, ARRAY_COUNT(game_state->perlin_periods));
     for (int perlin_n = 0;
@@ -692,45 +796,53 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   float bounces_per_us = game_state->bounces_per_second / 1000000.0;
 
-  vec2 translation;
-  for (translation.x = -game_state->terrain_dim.x*0.5;
-       translation.x <= game_state->terrain_dim.x*0.5;
-       ++translation.x)
-  for (translation.y = -game_state->terrain_dim.y*0.5;
-       translation.y <= game_state->terrain_dim.y*0.5;
-       ++translation.y)
+  vec2 chunk_position;
+  for (chunk_position.x = -game_state->current_terrain_dim.x*0.5;
+       chunk_position.x < game_state->current_terrain_dim.x*0.5;
+       ++chunk_position.x)
+  for (chunk_position.y = -game_state->current_terrain_dim.y*0.5;
+       chunk_position.y < game_state->current_terrain_dim.y*0.5;
+       ++chunk_position.y)
   {
-    mat4x4 cube;
-    mat4x4Identity(cube);
-    mat4x4Scale(cube, 0.5);
-    mat4x4Translate(cube, {translation.x, 0, translation.y});
+    TerrainChunk &terrain_chunk = get_terrain_chunk(game_state, chunk_position);
 
-    for (int perlin_n = 0;
-         perlin_n < game_state->n_perlins;
-         ++perlin_n)
+    vec2 translation;
+    for (translation.x = 0;
+         translation.x < CHUNK_SIZE;
+         ++translation.x)
+    for (translation.y = 0;
+         translation.y < CHUNK_SIZE;
+         ++translation.y)
     {
-      float terrain_offset = perlin(translation, game_state->perlin_periods[perlin_n]);
-      mat4x4Translate(cube, {0, game_state->perlin_amplitudes[perlin_n] * terrain_offset, 0});
+      mat4x4 cube;
+      mat4x4Identity(cube);
+      mat4x4Scale(cube, 0.5);
+      vec2 global_position = vec2Add(vec2Multiply(chunk_position, CHUNK_SIZE), translation);
+      mat4x4Translate(cube, {global_position.x, 0, global_position.y});
+
+      float terrain_offset = get_height_from_chunk(terrain_chunk, translation);
+      mat4x4Translate(cube, {0, terrain_offset, 0});
+
+      float sine_offset = 0;
+      switch (game_state->sine_offset_type)
+      {
+        case (SineOffsetType::Diagonal):
+        {
+          sine_offset = (translation.x/game_state->current_terrain_dim.x + translation.y/game_state->current_terrain_dim.y) * game_state->oscillation_frequency*2*M_PI;
+        } break;
+        case (SineOffsetType::Concentric):
+        {
+          sine_offset = vec2Length(translation) / (0.5 * vec2Length(game_state->current_terrain_dim)) * game_state->oscillation_frequency*2*M_PI;
+        } break;
+      }
+
+      float offset = sin(frame_time * bounces_per_us * 2*M_PI + sine_offset) * game_state->bounce_height;
+
+      mat4x4Translate(cube, {0, offset, 0});
+      glUniformMatrix4fv(game_state->model_matrix_uniform, 1, GL_FALSE, &cube[0][0]);
+      glDrawElements(GL_TRIANGLES, game_state->n_indices, GL_UNSIGNED_BYTE, 0);
     }
 
-    float sine_offset = 0;
-    switch (game_state->sine_offset_type)
-    {
-      case (SineOffsetType::Diagonal):
-      {
-        sine_offset = (translation.x/game_state->terrain_dim.x + translation.y/game_state->terrain_dim.y) * game_state->oscillation_frequency*2*M_PI;
-      } break;
-      case (SineOffsetType::Concentric):
-      {
-        sine_offset = vec2Length(translation) / (0.5 * vec2Length(game_state->terrain_dim)) * game_state->oscillation_frequency*2*M_PI;
-      } break;
-    }
-
-    float offset = sin(frame_time * bounces_per_us * 2*M_PI + sine_offset) * game_state->bounce_height;
-
-    mat4x4Translate(cube, {0, offset, 0});
-    glUniformMatrix4fv(game_state->model_matrix_uniform, 1, GL_FALSE, &cube[0][0]);
-    glDrawElements(GL_TRIANGLES, game_state->n_indices, GL_UNSIGNED_BYTE, 0);
   }
 
   glDisableVertexAttribArray(0);

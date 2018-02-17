@@ -11,6 +11,15 @@ enum struct SineOffsetType
   Concentric
 };
 
+const int CHUNK_SIZE = 16;
+
+struct TerrainChunk
+{
+  int terrain_gen_id;
+  vec2 position;
+  float height_map[CHUNK_SIZE*CHUNK_SIZE];
+};
+
 struct GameState
 {
   GLint program_id;
@@ -44,7 +53,11 @@ struct GameState
   float last_frame_delta;
   float last_frame_total;
 
-  vec2 terrain_dim;
+  TerrainChunk terrain_chunk_hashmap[1024];
+  int terrain_gen_id;
+  vec2 current_terrain_dim;
+
+  vec2 user_terrain_dim;
 
   int n_perlins;
   int perlin_periods[16];
