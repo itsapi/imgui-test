@@ -215,18 +215,18 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     game_state->oscillation_frequency = 0;
     game_state->bounce_height = 1;
     game_state->camera_velocity = {};
-    game_state->camera_position = {2.0f,2.0f,2.0f};
+    game_state->camera_position = {2.0f, 2.0f, 2.0f};
     game_state->camera_direction_velocity = {};
     game_state->camera_direction = { (float)atan2(game_state->camera_position.y, game_state->camera_position.z),
                                     -(float)atan2(game_state->camera_position.x, game_state->camera_position.z), 0.0f};
     game_state->player_speed = 0.5; // m/s
-    game_state->drag_radians_per_second = .5*M_PI;
+    game_state->drag_radians_per_second = 0.5 * M_PI;
 
     game_state->colour_picker_n = 0;
     game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
     game_state->colours[1] = {0.5f, 0.5f, 0.5f, 1};
 
-    game_state->user_terrain_dim = {2, 2};
+    game_state->user_terrain_dim = {5, 5};
     game_state->n_perlins = 15;
     for (int perlin_n = 0;
          perlin_n < ARRAY_COUNT(game_state->perlin_periods);
@@ -475,27 +475,33 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   vec3 camera_rotation_acceleration = {0, 0, 0};
   vec4 camera_acceleration = {0, 0, 0, 1};
 
+  int multiplier = 1;
+
   if (!io.WantCaptureKeyboard)
   {
+    if (ImGui::IsKeyPressed(SDL_SCANCODE_LSHIFT))
+    {
+      multiplier = 10;
+    }
     if (ImGui::IsKeyPressed(SDL_SCANCODE_Q))
     {
       game_state->capture_mouse = !game_state->capture_mouse;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_D))
     {
-      camera_acceleration.x += 1;
+      camera_acceleration.x += multiplier;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_A))
     {
-      camera_acceleration.x -= 1;
+      camera_acceleration.x -= multiplier;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_S))
     {
-      camera_acceleration.z += 1;
+      camera_acceleration.z += multiplier;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_W))
     {
-      camera_acceleration.z -= 1;
+      camera_acceleration.z -= multiplier;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_SPACE) && game_state->camera_position.y <= 1)
     {
@@ -513,19 +519,10 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     game_state->camera_direction.y += drag_delta.x;
   }
 
-  vec2 camera_acceleration_xz = {camera_acceleration.x, camera_acceleration.z};
-  float camera_acceleration_xz_length = vec2Length(camera_acceleration_xz);
-  if (camera_acceleration_xz_length > 0)
-  {
-    vec2 normalized_camera_acceleration_xz = vec2Multiply(camera_acceleration_xz, 1.0/camera_acceleration_xz_length);
-    camera_acceleration.x = normalized_camera_acceleration_xz.x;
-    camera_acceleration.z = normalized_camera_acceleration_xz.y;
-  }
-  camera_acceleration = vec4Multiply(camera_acceleration, game_state->last_frame_total * game_state->player_speed / 1000000.0);
-
   // Update camera direction
   //
 
+  camera_acceleration = vec4Multiply(camera_acceleration, game_state->last_frame_total * game_state->player_speed / 1000000.0);
   camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0 * M_PI);
 
   game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
@@ -549,7 +546,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   {
     camera_gravity_acceleration.y = -9.8;
   }
-  else if (game_state->camera_position.y + player_feet <= surface_height)
+  else if (game_state->camera_position.y + player_feet < surface_height)
   {
     game_state->camera_velocity.y = 0;
     game_state->camera_position.y = surface_height - player_feet;
@@ -570,6 +567,8 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   if (ImGui::Begin("Render parameters"))
   {
+    ImGui::Value("Surface Height", surface_height);
+
     ImGui::DragInt("FPS", &game_state->fps, 1, 1, 120);
     ImGui::Value("Last Frame Delta", game_state->last_frame_delta);
     ImGui::Value("Last FPS", 1000000.0f/game_state->last_frame_total);
@@ -618,7 +617,8 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     }
 
     ImGui::DragFloat2("Terrain dim", (float *)&game_state->user_terrain_dim.v);
-    ImGui::Value("N cubes", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y);
+    ImGui::Value("N chunks", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y);
+    ImGui::Value("N cubes", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y * CHUNK_SIZE * CHUNK_SIZE);
 
     ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
 
