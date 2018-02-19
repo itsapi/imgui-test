@@ -476,6 +476,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   vec4 camera_acceleration = {0, 0, 0, 1};
 
   int multiplier = 1;
+  bool jump = false;
 
   if (!io.WantCaptureKeyboard)
   {
@@ -503,11 +504,14 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     {
       camera_acceleration.z -= multiplier;
     }
-    if (ImGui::IsKeyDown(SDL_SCANCODE_SPACE) && game_state->camera_position.y <= 1)
+    if (ImGui::IsKeyDown(SDL_SCANCODE_SPACE))
     {
-      camera_acceleration.y += 30;
+      jump = true;
     }
   }
+
+  // Mouse movement
+  //
 
   SDL_SetRelativeMouseMode(game_state->capture_mouse ? SDL_TRUE : SDL_FALSE);
 
@@ -517,6 +521,23 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     game_state->camera_direction.x += drag_delta.y;
     game_state->camera_direction.x = fmin(fmax(game_state->camera_direction.x, -0.5*M_PI), 0.5*M_PI);
     game_state->camera_direction.y += drag_delta.x;
+  }
+
+  // Gravity
+  //
+
+  vec3 camera_gravity_acceleration = {0, 0, 0};
+
+  float surface_height = get_terrain_height_for_global_position(game_state, {game_state->camera_position.x, game_state->camera_position.z}) + 0.5;
+  float player_feet = -4;
+
+  if (game_state->camera_position.y + player_feet > surface_height)
+  {
+    camera_gravity_acceleration.y = -9.8;
+  }
+  else if (jump)
+  {
+    camera_acceleration.y += 100;
   }
 
   // Update camera direction
@@ -536,22 +557,6 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   mat4x4Identity(camera_y_orientation);
   mat4x4RotateY(camera_y_orientation, -game_state->camera_direction.y);
 
-  vec3 camera_gravity_acceleration = {0, 0, 0};
-
-  // Gravity
-  float surface_height = get_terrain_height_for_global_position(game_state, {game_state->camera_position.x, game_state->camera_position.z}) + 0.5;
-  float player_feet = -4;
-
-  if (game_state->camera_position.y + player_feet > surface_height)
-  {
-    camera_gravity_acceleration.y = -9.8;
-  }
-  else if (game_state->camera_position.y + player_feet < surface_height)
-  {
-    game_state->camera_velocity.y = 0;
-    game_state->camera_position.y = surface_height - player_feet;
-  }
-
   vec3 camera_gravity_acceleration_frame = vec3Multiply(camera_gravity_acceleration, game_state->last_frame_total/1000000.0);
 
   vec3 camera_world_acceleration = mat4x4MultiplyVector(camera_y_orientation, camera_acceleration).xyz;
@@ -561,6 +566,12 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   game_state->camera_position = vec3Add(game_state->camera_position, game_state->camera_velocity);
   game_state->camera_position.x = game_state->camera_position.x * 0.8;
   game_state->camera_position.z = game_state->camera_position.z * 0.8;
+
+  if (game_state->camera_position.y + player_feet < surface_height)
+  {
+    game_state->camera_velocity.y = 0;
+    game_state->camera_position.y = surface_height - player_feet;
+  }
 
   // ImGui window
   //
