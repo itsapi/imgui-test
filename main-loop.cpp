@@ -589,14 +589,14 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   vec3 camera_rotation_acceleration = {0, 0, 0};
   vec4 camera_acceleration = {0, 0, 0, 1};
 
-  int multiplier = 1;
+  float this_frame_player_speed = game_state->player_speed;
   bool jump = false;
 
   if (!io.WantCaptureKeyboard)
   {
     if (ImGui::IsKeyPressed(SDL_SCANCODE_LSHIFT))
     {
-      multiplier = 10;
+      this_frame_player_speed += 10;
     }
     if (ImGui::IsKeyPressed(SDL_SCANCODE_Q))
     {
@@ -604,19 +604,19 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_D))
     {
-      camera_acceleration.x += multiplier;
+      camera_acceleration.x += 1;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_A))
     {
-      camera_acceleration.x -= multiplier;
+      camera_acceleration.x -= 1;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_S))
     {
-      camera_acceleration.z += multiplier;
+      camera_acceleration.z += 1;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_W))
     {
-      camera_acceleration.z -= multiplier;
+      camera_acceleration.z -= 1;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_SPACE))
     {
@@ -657,7 +657,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   // Update camera direction
   //
 
-  camera_acceleration = vec4Multiply(camera_acceleration, game_state->last_frame_total * game_state->player_speed / 1000000.0);
+  camera_acceleration = vec4Multiply(camera_acceleration, game_state->last_frame_total * this_frame_player_speed / 1000000.0);
   camera_rotation_acceleration = vec3Multiply(camera_rotation_acceleration, 0.001 * 2.0 * M_PI);
 
   game_state->camera_direction_velocity = vec3Add(game_state->camera_direction_velocity, camera_rotation_acceleration);
