@@ -199,269 +199,383 @@ get_terrain_height_for_global_position(GameState *game_state, vec2 position)
 
 
 void
+render_window(GameState *game_state, float surface_height)
+{
+  if (ImGui::Begin("Render parameters"))
+  {
+    ImGui::Value("Surface Height", surface_height);
+
+    ImGui::DragInt("FPS", &game_state->fps, 1, 1, 120);
+    ImGui::Value("Last Frame Delta", game_state->last_frame_delta);
+    ImGui::Value("Last FPS", 1000000.0f/game_state->last_frame_total);
+
+    ImGui::DragFloat("FOV", &game_state->fov, 1, 1, 180);
+    ImGui::DragFloat3("Camera position", (float *)&game_state->camera_position.v);
+
+    vec3 camera_direction_deg = vec3Multiply(game_state->camera_direction, 180.0/M_PI);
+    if (ImGui::DragFloat3("Camera direction", (float *)&camera_direction_deg.v))
+    {
+      game_state->camera_direction = vec3Multiply(camera_direction_deg, M_PI/180.0);
+    }
+    ImGui::Text("Camera Velocity: %f  %f  %f", game_state->camera_velocity.x, game_state->camera_velocity.y, game_state->camera_velocity.z);
+
+    if (ImGui::Button("Top down view"))
+    {
+      game_state->camera_position = {0, 20, 0};
+      game_state->camera_direction = {0.5*M_PI, 0, 0};
+      game_state->camera_velocity = {};
+      game_state->camera_direction_velocity = {};
+    }
+
+    ImGui::DragFloat("Player speed", &game_state->player_speed);
+    ImGui::DragFloat("Mouse speed", &game_state->drag_radians_per_second, M_PI/180.0);
+
+    ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
+
+    if (ImGui::ColorButton("Light colour", {game_state->light_colour.x, game_state->light_colour.y, game_state->light_colour.z, 1}))
+    {
+      ImGui::OpenPopup("Change light colour");
+    }
+    if (ImGui::BeginPopup("Change light colour"))
+    {
+      ImGui::ColorPicker3("##light colour picker", (float *)&game_state->light_colour.v);
+      ImGui::EndPopup();
+    }
+
+    if (ImGui::ColorButton("Ambient light colour", {game_state->ambient_light_colour.x, game_state->ambient_light_colour.y, game_state->ambient_light_colour.z, 1}))
+    {
+      ImGui::OpenPopup("Change ambient light colour");
+    }
+    if (ImGui::BeginPopup("Change ambient light colour"))
+    {
+      ImGui::ColorPicker3("##ambient light colour picker", (float *)&game_state->ambient_light_colour.v);
+      ImGui::EndPopup();
+    }
+
+    ImGui::DragFloat2("Terrain dim", (float *)&game_state->user_terrain_dim.v);
+    ImGui::Value("N chunks", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y);
+    ImGui::Value("N cubes", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y * CHUNK_SIZE * CHUNK_SIZE);
+
+    ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
+
+    if (ImGui::Button("Re-generate terrain"))
+    {
+      generate_terrain(game_state);
+    }
+
+    ImGui::DragInt("Number of Perlins", &game_state->n_perlins, 0.2, 0, ARRAY_COUNT(game_state->perlin_periods));
+    for (int perlin_n = 0;
+         perlin_n < game_state->n_perlins;
+         ++perlin_n)
+    {
+      ImGui::PushID(perlin_n);
+      ImGui::DragInt("Perlin period", &game_state->perlin_periods[perlin_n], 1, 1, 1024);
+      ImGui::DragFloat("Perlin amplitude", &game_state->perlin_amplitudes[perlin_n], 0.1, 0, 1024);
+      ImGui::PopID();
+    }
+
+    ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
+    ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
+    ImGui::DragFloat("Oscillation Frequency", &game_state->oscillation_frequency, 0.01, 0, 10);
+    ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 0.1, 0, 100);
+
+    for (int colour_n = 0; colour_n < 2; ++colour_n)
+    {
+      ImGui::PushID(colour_n);
+      vec4 c = {game_state->colours[colour_n].x, game_state->colours[colour_n].y, game_state->colours[colour_n].z, 0.0f};
+      bool pushed = ImGui::ColorButton("##change colour", c);
+      ImGui::PopID();
+
+      if (pushed) {
+        game_state->colour_picker_n = colour_n;
+        ImGui::OpenPopup("Change Colour");
+      }
+      ImGui::SameLine();
+      ImGui::Text("Side %d", colour_n + 1);
+    }
+
+    if (ImGui::BeginPopup("Change Colour"))
+    {
+      ImGui::ColorPicker3("##picker", (float*)&game_state->colours[game_state->colour_picker_n]);
+      ImGui::EndPopup();
+    }
+  }
+
+  ImGui::End();
+}
+
+
+void
+init_game_state(GameState *game_state)
+{
+  // Initialise GameState
+  //
+
+  game_state->game_start_time = get_us();
+  game_state->fps = 60;
+  game_state->fov = 45.0f;
+  game_state->terrain_rotation = {};
+  game_state->sine_offset_type = SineOffsetType::Concentric;
+  game_state->bounces_per_second = 0;
+  game_state->oscillation_frequency = 0;
+  game_state->bounce_height = 1;
+  game_state->camera_velocity = {};
+  game_state->camera_position = {2.0f, 2.0f, 2.0f};
+  game_state->camera_direction_velocity = {};
+  game_state->camera_direction = { (float)atan2(game_state->camera_position.y, game_state->camera_position.z),
+                                  -(float)atan2(game_state->camera_position.x, game_state->camera_position.z), 0.0f};
+  game_state->player_speed = 0.5; // m/s
+  game_state->drag_radians_per_second = 0.5 * M_PI;
+
+  game_state->colour_picker_n = 0;
+  game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
+  game_state->colours[1] = {0.5f, 0.5f, 0.5f, 1};
+
+  game_state->user_terrain_dim = {5, 5};
+  game_state->n_perlins = 15;
+  for (int perlin_n = 0;
+       perlin_n < ARRAY_COUNT(game_state->perlin_periods);
+       ++perlin_n)
+  {
+    game_state->perlin_periods[perlin_n] = 16;
+    game_state->perlin_amplitudes[perlin_n] = 1;
+  }
+
+  game_state->terrain_gen_id = 0;
+  generate_terrain(game_state);
+
+  game_state->light_position = {0, 10, 0};
+  game_state->light_colour = {1, 1, 1};
+  game_state->ambient_light_colour = {0.3, 0.3, 0.3};
+
+  game_state->capture_mouse = true;
+
+  game_state->init = true;
+
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LESS);
+
+  glEnable(GL_CULL_FACE);
+
+  GLuint vertex_array_id;
+  glGenVertexArrays(1, &vertex_array_id);
+  glBindVertexArray(vertex_array_id);
+
+  // Initialise OpenGL shaders
+  //
+
+  game_state->program_id = LoadShaders( "TransformVertexShader.vertexshader", "ColorFragmentShader.fragmentshader" );
+
+  game_state->world_view_projection_matrix_uniform = glGetUniformLocation(game_state->program_id, "WORLD_VIEW_PROJECTION");
+  game_state->model_matrix_uniform = glGetUniformLocation(game_state->program_id, "MODEL");
+  game_state->light_position_uniform = glGetUniformLocation(game_state->program_id, "LIGHT_POSITION");
+  game_state->light_colour_uniform = glGetUniformLocation(game_state->program_id, "LIGHT_COLOUR");
+  game_state->ambient_light_uniform = glGetUniformLocation(game_state->program_id, "AMBIENT_LIGHT_COLOUR");
+  game_state->grass_texture_uniform = glGetUniformLocation(game_state->program_id, "GRASS_TEXTURE");
+  game_state->normal_map_texture_uniform = glGetUniformLocation(game_state->program_id, "NORMAL_MAP_TEXTURE");
+
+  // Vertex data
+  //
+
+  const GLubyte index_buffer_data[] = {
+    // Top
+    0, 1, 2,
+    0, 2, 3,
+
+    // Bottom
+    7, 5, 4,
+    5, 7, 6,
+
+    // Front face
+    8, 9, 10,
+    11, 9, 8,
+
+    // Back face
+    12, 13, 14,
+    15, 13, 12,
+
+    // Side face
+    10, 9, 12,
+    9, 15, 12,
+
+    // Side face
+    11, 8, 13,
+    8, 14, 13
+  };
+
+  game_state->n_indices = ARRAY_COUNT(index_buffer_data);
+
+  const vec3 vertex_buffer_data[] = {
+    // Top face
+    { 1.0f,  1.0f,  1.0f},
+    { 1.0f,  1.0f, -1.0f},
+    {-1.0f,  1.0f, -1.0f},
+    {-1.0f,  1.0f,  1.0f},
+
+    // Bottom face
+    { 1.0f, -1.0f,  1.0f},
+    { 1.0f, -1.0f, -1.0f},
+    {-1.0f, -1.0f, -1.0f},
+    {-1.0f, -1.0f,  1.0f},
+
+    // Front face
+    { 1.0f,  1.0f,  1.0f},
+    { 1.0f, -1.0f, -1.0f},
+    { 1.0f,  1.0f, -1.0f},
+    { 1.0f, -1.0f,  1.0f},
+
+    // Back face
+    {-1.0f,  1.0f, -1.0f},
+    {-1.0f, -1.0f,  1.0f},
+    {-1.0f,  1.0f,  1.0f},
+    {-1.0f, -1.0f, -1.0f}
+  };
+
+  const int n_vertices = ARRAY_COUNT(vertex_buffer_data);
+
+  const vec2 uv_buffer_data[n_vertices] = {
+    // Top face
+    {0,   1},
+    {0.5, 1},
+    {0.5, 0.5},
+    {0,   0.5},
+
+    // Bottom face
+    {0.5, 1},
+    {1,   1},
+    {1,   0.5},
+    {0.5, 0.5},
+
+    // Front face
+    {0,   0.5},
+    {0.5, 0},
+    {0.5, 0.5},
+    {0,   0},
+
+    // Back face
+    {0,   0.5},
+    {0.5, 0},
+    {0.5, 0.5},
+    {0,   0}
+  };
+
+  const vec3 normal_buffer_data[n_vertices] = {
+    // Top face
+    {0, 1, 0},
+    {0, 1, 0},
+    {0, 1, 0},
+    {0, 1, 0},
+
+    // Bottom face
+    {0, -1, 0},
+    {0, -1, 0},
+    {0, -1, 0},
+    {0, -1, 0},
+
+    // Front face
+    vec3Normalize({1, 0,  1}),
+    vec3Normalize({1, 0, -1}),
+    vec3Normalize({1, 0, -1}),
+    vec3Normalize({1, 0,  0}),
+
+    // Back face
+    vec3Normalize({-1, 0, -1}),
+    vec3Normalize({-1, 0,  1}),
+    vec3Normalize({-1, 0,  1}),
+    vec3Normalize({-1, 0, -1})
+  };
+
+  vec3 tangent_buffer_data[n_vertices] = {};
+  vec3 bitangent_buffer_data[n_vertices] = {};
+
+  // Generate tangents and bitangents
+  //
+
+  for (int index_index = 0;
+       index_index < game_state->n_indices;
+       index_index += 3)
+  {
+    GLubyte index0 = index_buffer_data[index_index+0];
+    GLubyte index1 = index_buffer_data[index_index+1];
+    GLubyte index2 = index_buffer_data[index_index+2];
+
+    const vec3& vertex0 = vertex_buffer_data[index0];
+    const vec3& vertex1 = vertex_buffer_data[index1];
+    const vec3& vertex2 = vertex_buffer_data[index2];
+
+    const vec2& uv0 = uv_buffer_data[index0];
+    const vec2& uv1 = uv_buffer_data[index1];
+    const vec2& uv2 = uv_buffer_data[index2];
+
+    // Edges of the triangle - position delta
+    vec3 delta_pos1 = vec3Subtract(vertex1, vertex0);
+    vec3 delta_pos2 = vec3Subtract(vertex2, vertex0);
+
+    // UV delta
+    vec2 delta_UV1 = vec2Subtract(uv1, uv0);
+    vec2 delta_UV2 = vec2Subtract(uv2, uv0);
+
+    float r = 1.0f / (delta_UV1.x * delta_UV2.y - delta_UV1.y * delta_UV2.x);
+
+    vec3 tangent = vec3Multiply(vec3Subtract(vec3Multiply(delta_pos1, delta_UV2.y), vec3Multiply(delta_pos2, delta_UV1.y)), r);
+    vec3 bitangent = vec3Multiply(vec3Subtract(vec3Multiply(delta_pos2, delta_UV1.x), vec3Multiply(delta_pos1, delta_UV2.x)), r);
+
+    tangent_buffer_data[index0] = tangent;
+    tangent_buffer_data[index1] = tangent;
+    tangent_buffer_data[index2] = tangent;
+    bitangent_buffer_data[index0] = bitangent;
+    bitangent_buffer_data[index1] = bitangent;
+    bitangent_buffer_data[index2] = bitangent;
+  }
+
+  // Initialise OpenGL buffers
+  //
+
+  glGenBuffers(1, &game_state->index_buffer);
+  glGenBuffers(1, &game_state->vertex_buffer);
+  glGenBuffers(1, &game_state->color_buffer);
+  glGenBuffers(1, &game_state->uv_buffer);
+  glGenBuffers(1, &game_state->normal_buffer);
+  glGenBuffers(1, &game_state->tangent_buffer);
+  glGenBuffers(1, &game_state->bitangent_buffer);
+
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_buffer_data), vertex_buffer_data, GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->uv_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(uv_buffer_data), uv_buffer_data, GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->normal_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(normal_buffer_data), normal_buffer_data, GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->tangent_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(tangent_buffer_data), tangent_buffer_data, GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ARRAY_BUFFER, game_state->bitangent_buffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(bitangent_buffer_data), bitangent_buffer_data, GL_STATIC_DRAW);
+
+  // Initialise OpenGL textures
+  //
+
+  glActiveTexture(GL_TEXTURE0);
+  game_state->grass_texture_id = loadBMP_custom("textures/block-texture.bmp");
+
+  glActiveTexture(GL_TEXTURE1);
+  game_state->normal_map_texture_id = loadBMP_custom("textures/normal-map-texture.bmp");
+
+  opengl_print_errors();
+}
+
+
+void
 main_loop(GameState *game_state, vec2 mouse_delta)
 {
   if (!game_state->init)
   {
-    // Initialise GameState
-    //
-
-    game_state->game_start_time = get_us();
-    game_state->fps = 60;
-    game_state->fov = 45.0f;
-    game_state->terrain_rotation = {};
-    game_state->sine_offset_type = SineOffsetType::Concentric;
-    game_state->bounces_per_second = 0;
-    game_state->oscillation_frequency = 0;
-    game_state->bounce_height = 1;
-    game_state->camera_velocity = {};
-    game_state->camera_position = {2.0f, 2.0f, 2.0f};
-    game_state->camera_direction_velocity = {};
-    game_state->camera_direction = { (float)atan2(game_state->camera_position.y, game_state->camera_position.z),
-                                    -(float)atan2(game_state->camera_position.x, game_state->camera_position.z), 0.0f};
-    game_state->player_speed = 0.5; // m/s
-    game_state->drag_radians_per_second = 0.5 * M_PI;
-
-    game_state->colour_picker_n = 0;
-    game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
-    game_state->colours[1] = {0.5f, 0.5f, 0.5f, 1};
-
-    game_state->user_terrain_dim = {5, 5};
-    game_state->n_perlins = 15;
-    for (int perlin_n = 0;
-         perlin_n < ARRAY_COUNT(game_state->perlin_periods);
-         ++perlin_n)
-    {
-      game_state->perlin_periods[perlin_n] = 16;
-      game_state->perlin_amplitudes[perlin_n] = 1;
-    }
-
-    game_state->terrain_gen_id = 0;
-    generate_terrain(game_state);
-
-    game_state->light_position = {0, 10, 0};
-    game_state->light_colour = {1, 1, 1};
-    game_state->ambient_light_colour = {0.3, 0.3, 0.3};
-
-    game_state->capture_mouse = true;
-
-    game_state->init = true;
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-
-    glEnable(GL_CULL_FACE);
-
-    GLuint vertex_array_id;
-    glGenVertexArrays(1, &vertex_array_id);
-    glBindVertexArray(vertex_array_id);
-
-    // Initialise OpenGL shaders
-    //
-
-    game_state->program_id = LoadShaders( "TransformVertexShader.vertexshader", "ColorFragmentShader.fragmentshader" );
-
-    game_state->world_view_projection_matrix_uniform = glGetUniformLocation(game_state->program_id, "WORLD_VIEW_PROJECTION");
-    game_state->model_matrix_uniform = glGetUniformLocation(game_state->program_id, "MODEL");
-    game_state->light_position_uniform = glGetUniformLocation(game_state->program_id, "LIGHT_POSITION");
-    game_state->light_colour_uniform = glGetUniformLocation(game_state->program_id, "LIGHT_COLOUR");
-    game_state->ambient_light_uniform = glGetUniformLocation(game_state->program_id, "AMBIENT_LIGHT_COLOUR");
-    game_state->grass_texture_uniform = glGetUniformLocation(game_state->program_id, "GRASS_TEXTURE");
-    game_state->normal_map_texture_uniform = glGetUniformLocation(game_state->program_id, "NORMAL_MAP_TEXTURE");
-
-    // Vertex data
-    //
-
-    const GLubyte index_buffer_data[] = {
-      // Top
-      0, 1, 2,
-      0, 2, 3,
-
-      // Bottom
-      7, 5, 4,
-      5, 7, 6,
-
-      // Front face
-      8, 9, 10,
-      11, 9, 8,
-
-      // Back face
-      12, 13, 14,
-      15, 13, 12,
-
-      // Side face
-      10, 9, 12,
-      9, 15, 12,
-
-      // Side face
-      11, 8, 13,
-      8, 14, 13
-    };
-
-    game_state->n_indices = ARRAY_COUNT(index_buffer_data);
-
-    const vec3 vertex_buffer_data[] = {
-      // Top face
-      { 1.0f,  1.0f,  1.0f},
-      { 1.0f,  1.0f, -1.0f},
-      {-1.0f,  1.0f, -1.0f},
-      {-1.0f,  1.0f,  1.0f},
-
-      // Bottom face
-      { 1.0f, -1.0f,  1.0f},
-      { 1.0f, -1.0f, -1.0f},
-      {-1.0f, -1.0f, -1.0f},
-      {-1.0f, -1.0f,  1.0f},
-
-      // Front face
-      { 1.0f,  1.0f,  1.0f},
-      { 1.0f, -1.0f, -1.0f},
-      { 1.0f,  1.0f, -1.0f},
-      { 1.0f, -1.0f,  1.0f},
-
-      // Back face
-      {-1.0f,  1.0f, -1.0f},
-      {-1.0f, -1.0f,  1.0f},
-      {-1.0f,  1.0f,  1.0f},
-      {-1.0f, -1.0f, -1.0f}
-    };
-
-    const int n_vertices = ARRAY_COUNT(vertex_buffer_data);
-
-    const vec2 uv_buffer_data[n_vertices] = {
-      // Top face
-      {0,   1},
-      {0.5, 1},
-      {0.5, 0.5},
-      {0,   0.5},
-
-      // Bottom face
-      {0.5, 1},
-      {1,   1},
-      {1,   0.5},
-      {0.5, 0.5},
-
-      // Front face
-      {0,   0.5},
-      {0.5, 0},
-      {0.5, 0.5},
-      {0,   0},
-
-      // Back face
-      {0,   0.5},
-      {0.5, 0},
-      {0.5, 0.5},
-      {0,   0}
-    };
-
-    const vec3 normal_buffer_data[n_vertices] = {
-      // Top face
-      {0, 1, 0},
-      {0, 1, 0},
-      {0, 1, 0},
-      {0, 1, 0},
-
-      // Bottom face
-      {0, -1, 0},
-      {0, -1, 0},
-      {0, -1, 0},
-      {0, -1, 0},
-
-      // Front face
-      vec3Normalize({1, 0,  1}),
-      vec3Normalize({1, 0, -1}),
-      vec3Normalize({1, 0, -1}),
-      vec3Normalize({1, 0,  0}),
-
-      // Back face
-      vec3Normalize({-1, 0, -1}),
-      vec3Normalize({-1, 0,  1}),
-      vec3Normalize({-1, 0,  1}),
-      vec3Normalize({-1, 0, -1})
-    };
-
-    vec3 tangent_buffer_data[n_vertices] = {};
-    vec3 bitangent_buffer_data[n_vertices] = {};
-
-    // Generate tangents and bitangents
-    //
-
-    for (int index_index = 0;
-         index_index < game_state->n_indices;
-         index_index += 3)
-    {
-      GLubyte index0 = index_buffer_data[index_index+0];
-      GLubyte index1 = index_buffer_data[index_index+1];
-      GLubyte index2 = index_buffer_data[index_index+2];
-
-      const vec3& vertex0 = vertex_buffer_data[index0];
-      const vec3& vertex1 = vertex_buffer_data[index1];
-      const vec3& vertex2 = vertex_buffer_data[index2];
-
-      const vec2& uv0 = uv_buffer_data[index0];
-      const vec2& uv1 = uv_buffer_data[index1];
-      const vec2& uv2 = uv_buffer_data[index2];
-
-      // Edges of the triangle - position delta
-      vec3 delta_pos1 = vec3Subtract(vertex1, vertex0);
-      vec3 delta_pos2 = vec3Subtract(vertex2, vertex0);
-
-      // UV delta
-      vec2 delta_UV1 = vec2Subtract(uv1, uv0);
-      vec2 delta_UV2 = vec2Subtract(uv2, uv0);
-
-      float r = 1.0f / (delta_UV1.x * delta_UV2.y - delta_UV1.y * delta_UV2.x);
-
-      vec3 tangent = vec3Multiply(vec3Subtract(vec3Multiply(delta_pos1, delta_UV2.y), vec3Multiply(delta_pos2, delta_UV1.y)), r);
-      vec3 bitangent = vec3Multiply(vec3Subtract(vec3Multiply(delta_pos2, delta_UV1.x), vec3Multiply(delta_pos1, delta_UV2.x)), r);
-
-      tangent_buffer_data[index0] = tangent;
-      tangent_buffer_data[index1] = tangent;
-      tangent_buffer_data[index2] = tangent;
-      bitangent_buffer_data[index0] = bitangent;
-      bitangent_buffer_data[index1] = bitangent;
-      bitangent_buffer_data[index2] = bitangent;
-    }
-
-    // Initialise OpenGL buffers
-    //
-
-    glGenBuffers(1, &game_state->index_buffer);
-    glGenBuffers(1, &game_state->vertex_buffer);
-    glGenBuffers(1, &game_state->color_buffer);
-    glGenBuffers(1, &game_state->uv_buffer);
-    glGenBuffers(1, &game_state->normal_buffer);
-    glGenBuffers(1, &game_state->tangent_buffer);
-    glGenBuffers(1, &game_state->bitangent_buffer);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_state->index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(index_buffer_data), index_buffer_data, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, game_state->vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_buffer_data), vertex_buffer_data, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, game_state->uv_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(uv_buffer_data), uv_buffer_data, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, game_state->normal_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(normal_buffer_data), normal_buffer_data, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, game_state->tangent_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(tangent_buffer_data), tangent_buffer_data, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ARRAY_BUFFER, game_state->bitangent_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(bitangent_buffer_data), bitangent_buffer_data, GL_STATIC_DRAW);
-
-    // Initialise OpenGL textures
-    //
-
-    glActiveTexture(GL_TEXTURE0);
-    game_state->grass_texture_id = loadBMP_custom("textures/block-texture.bmp");
-
-    glActiveTexture(GL_TEXTURE1);
-    game_state->normal_map_texture_id = loadBMP_custom("textures/normal-map-texture.bmp");
-
-    opengl_print_errors();
+    init_game_state(game_state);
   }
 
   uint64_t frame_start_time = get_us();
@@ -576,107 +690,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   // ImGui window
   //
 
-  if (ImGui::Begin("Render parameters"))
-  {
-    ImGui::Value("Surface Height", surface_height);
-
-    ImGui::DragInt("FPS", &game_state->fps, 1, 1, 120);
-    ImGui::Value("Last Frame Delta", game_state->last_frame_delta);
-    ImGui::Value("Last FPS", 1000000.0f/game_state->last_frame_total);
-
-    ImGui::DragFloat("FOV", &game_state->fov, 1, 1, 180);
-    ImGui::DragFloat3("Camera position", (float *)&game_state->camera_position.v);
-
-    vec3 camera_direction_deg = vec3Multiply(game_state->camera_direction, 180.0/M_PI);
-    if (ImGui::DragFloat3("Camera direction", (float *)&camera_direction_deg.v))
-    {
-      game_state->camera_direction = vec3Multiply(camera_direction_deg, M_PI/180.0);
-    }
-    ImGui::Text("Camera Velocity: %f  %f  %f", game_state->camera_velocity.x, game_state->camera_velocity.y, game_state->camera_velocity.z);
-
-    if (ImGui::Button("Top down view"))
-    {
-      game_state->camera_position = {0, 20, 0};
-      game_state->camera_direction = {0.5*M_PI, 0, 0};
-      game_state->camera_velocity = {};
-      game_state->camera_direction_velocity = {};
-    }
-
-    ImGui::DragFloat("Player speed", &game_state->player_speed);
-    ImGui::DragFloat("Mouse speed", &game_state->drag_radians_per_second, M_PI/180.0);
-
-    ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
-
-    if (ImGui::ColorButton("Light colour", {game_state->light_colour.x, game_state->light_colour.y, game_state->light_colour.z, 1}))
-    {
-      ImGui::OpenPopup("Change light colour");
-    }
-    if (ImGui::BeginPopup("Change light colour"))
-    {
-      ImGui::ColorPicker3("##light colour picker", (float *)&game_state->light_colour.v);
-      ImGui::EndPopup();
-    }
-
-    if (ImGui::ColorButton("Ambient light colour", {game_state->ambient_light_colour.x, game_state->ambient_light_colour.y, game_state->ambient_light_colour.z, 1}))
-    {
-      ImGui::OpenPopup("Change ambient light colour");
-    }
-    if (ImGui::BeginPopup("Change ambient light colour"))
-    {
-      ImGui::ColorPicker3("##ambient light colour picker", (float *)&game_state->ambient_light_colour.v);
-      ImGui::EndPopup();
-    }
-
-    ImGui::DragFloat2("Terrain dim", (float *)&game_state->user_terrain_dim.v);
-    ImGui::Value("N chunks", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y);
-    ImGui::Value("N cubes", game_state->user_terrain_dim.x * game_state->user_terrain_dim.y * CHUNK_SIZE * CHUNK_SIZE);
-
-    ImGui::DragFloat3("Terrain Rotation", (float *)&game_state->terrain_rotation, 1, -360, 360);
-
-    if (ImGui::Button("Re-generate terrain"))
-    {
-      generate_terrain(game_state);
-    }
-
-    ImGui::DragInt("Number of Perlins", &game_state->n_perlins, 0.2, 0, ARRAY_COUNT(game_state->perlin_periods));
-    for (int perlin_n = 0;
-         perlin_n < game_state->n_perlins;
-         ++perlin_n)
-    {
-      ImGui::PushID(perlin_n);
-      ImGui::DragInt("Perlin period", &game_state->perlin_periods[perlin_n], 1, 1, 1024);
-      ImGui::DragFloat("Perlin amplitude", &game_state->perlin_amplitudes[perlin_n], 0.1, 0, 1024);
-      ImGui::PopID();
-    }
-
-    ImGui::Combo("Sine Offset Type", (int*)&game_state->sine_offset_type, "Diagonal\0Concentric\0\0");
-    ImGui::DragFloat("Bounces Per Second", &game_state->bounces_per_second, 0.01, 0, 10);
-    ImGui::DragFloat("Oscillation Frequency", &game_state->oscillation_frequency, 0.01, 0, 10);
-    ImGui::DragFloat("Bounce Height", &game_state->bounce_height, 0.1, 0, 100);
-
-    for (int colour_n = 0; colour_n < 2; ++colour_n)
-    {
-      ImGui::PushID(colour_n);
-      vec4 c = {game_state->colours[colour_n].x, game_state->colours[colour_n].y, game_state->colours[colour_n].z, 0.0f};
-      bool pushed = ImGui::ColorButton("##change colour", c);
-      ImGui::PopID();
-
-      if (pushed) {
-        game_state->colour_picker_n = colour_n;
-        ImGui::OpenPopup("Change Colour");
-      }
-      ImGui::SameLine();
-      ImGui::Text("Side %d", colour_n + 1);
-    }
-
-    if (ImGui::BeginPopup("Change Colour"))
-    {
-      ImGui::ColorPicker3("##picker", (float*)&game_state->colours[game_state->colour_picker_n]);
-      ImGui::EndPopup();
-    }
-  }
-
-  ImGui::End();
+  render_window(game_state, surface_height);
 
   // Create world, view, projection matrices
   //
