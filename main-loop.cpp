@@ -191,7 +191,7 @@ float
 get_terrain_height_for_global_position(GameState *game_state, vec2 position)
 {
   vec2 chunk_position = vec2Multiply(position, 1.0/CHUNK_SIZE);
-  chunk_position = {floor(chunk_position.x), floor(chunk_position.y)};
+  chunk_position = {floorf(chunk_position.x), floorf(chunk_position.y)};
   vec2 chunk_offset = vec2Subtract(position, vec2Multiply(chunk_position, CHUNK_SIZE));
 
   return get_height_from_chunk(get_terrain_chunk(game_state, chunk_position), chunk_offset);
