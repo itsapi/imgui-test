@@ -199,6 +199,39 @@ get_terrain_height_for_global_position(GameState *game_state, vec2 position)
 
 
 void
+ToggleButton(const char* str_id, bool* v)
+{
+  ImVec2 p = ImGui::GetCursorScreenPos();
+  ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+  float height = ImGui::GetFrameHeight();
+  float width = height * 1.55f;
+  float radius = height * 0.50f;
+
+  if (ImGui::InvisibleButton(str_id, ImVec2(width, height)))
+  {
+    *v = !*v;
+  }
+
+  ImU32 col_bg;
+  if (ImGui::IsItemHovered())
+  {
+    col_bg = *v ? IM_COL32(145+20, 211, 68+20, 255) : IM_COL32(218-20, 218-20, 218-20, 255);
+  }
+  else
+  {
+    col_bg = *v ? IM_COL32(145, 211, 68, 255) : IM_COL32(218, 218, 218, 255);
+  }
+
+  draw_list->AddRectFilled(p, ImVec2(p.x + width, p.y + height), col_bg, height * 0.5f);
+  draw_list->AddCircleFilled(ImVec2(*v ? (p.x + width - radius) : (p.x + radius), p.y + radius), radius - 1.5f, IM_COL32(255, 255, 255, 255));
+
+  ImGui::SameLine();
+  ImGui::Text("%s", str_id);
+}
+
+
+void
 render_window(GameState *game_state, float surface_height)
 {
   if (ImGui::Begin("Render parameters"))
@@ -219,8 +252,12 @@ render_window(GameState *game_state, float surface_height)
     }
     ImGui::Text("Camera Velocity: %f  %f  %f", game_state->camera_velocity.x, game_state->camera_velocity.y, game_state->camera_velocity.z);
 
+    ToggleButton("Capture Mouse", &game_state->capture_mouse);
+    ToggleButton("Debug Camera", &game_state->debug_camera);
+
     if (ImGui::Button("Top down view"))
     {
+      game_state->debug_camera = true;
       game_state->camera_position = {0, 20, 0};
       game_state->camera_direction = {0.5*M_PI, 0, 0};
       game_state->camera_velocity = {};
@@ -229,6 +266,7 @@ render_window(GameState *game_state, float surface_height)
 
     ImGui::DragFloat("Player speed", &game_state->player_speed);
     ImGui::DragFloat("Mouse speed", &game_state->drag_radians_per_second, M_PI/180.0);
+    ImGui::DragFloat("Player Feet", &game_state->player_feet);
 
     ImGui::DragFloat3("Light position", (float *)&game_state->light_position.v);
 
@@ -326,6 +364,7 @@ init_game_state(GameState *game_state)
                                   -(float)atan2(game_state->camera_position.x, game_state->camera_position.z), 0.0f};
   game_state->player_speed = 0.5; // m/s
   game_state->drag_radians_per_second = 0.5 * M_PI;
+  game_state->player_feet = -4;
 
   game_state->colour_picker_n = 0;
   game_state->colours[0] = {0.15f, 0.7f, 0.1f, 1};
@@ -595,13 +634,18 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   if (!io.WantCaptureKeyboard)
   {
-    if (ImGui::IsKeyPressed(SDL_SCANCODE_LSHIFT))
+    if (ImGui::IsKeyPressed(SDL_SCANCODE_E))
     {
-      this_frame_player_horizontal_speed  += 10;
+      game_state->debug_camera = !game_state->debug_camera;
     }
     if (ImGui::IsKeyPressed(SDL_SCANCODE_Q))
     {
       game_state->capture_mouse = !game_state->capture_mouse;
+    }
+
+    if (ImGui::IsKeyDown(SDL_SCANCODE_LSHIFT))
+    {
+      this_frame_player_horizontal_speed += 10;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_D))
     {
@@ -623,6 +667,23 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     {
       jump = true;
     }
+
+    if (game_state->debug_camera)
+    {
+      this_frame_player_vertical_speed = game_state->player_speed;
+      if (ImGui::IsKeyDown(SDL_SCANCODE_SPACE))
+      {
+        camera_acceleration_direction.y += 1;
+      }
+      if (ImGui::IsKeyDown(SDL_SCANCODE_F))
+      {
+        camera_acceleration_direction.y -= 1;
+      }
+      if (ImGui::IsKeyDown(SDL_SCANCODE_LSHIFT))
+      {
+        this_frame_player_vertical_speed += 10;
+      }
+    }
   }
 
   // Mouse movement
@@ -643,17 +704,20 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   vec3 camera_gravity_acceleration = {0, 0, 0};
 
-  float surface_height = get_terrain_height_for_global_position(game_state, {game_state->camera_position.x, game_state->camera_position.z}) + 0.5;
-  float player_feet = -4;
+  float surface_height;
+  if (!game_state->debug_camera)
+  {
+    surface_height = get_terrain_height_for_global_position(game_state, {game_state->camera_position.x, game_state->camera_position.z}) + 0.5;
 
-  if (game_state->camera_position.y + player_feet > surface_height)
-  {
-    camera_gravity_acceleration.y = -9.8;
-  }
-  else if (jump)
-  {
-    this_frame_player_vertical_speed += 100;
-    camera_acceleration_direction.y = 1;
+    if (game_state->camera_position.y + game_state->player_feet > surface_height)
+    {
+      camera_gravity_acceleration.y = -9.8;
+    }
+    else if (jump)
+    {
+      this_frame_player_vertical_speed += 100;
+      camera_acceleration_direction.y = 1;
+    }
   }
 
   // Update camera direction
@@ -697,10 +761,17 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   game_state->camera_position.x = game_state->camera_position.x * 0.8;
   game_state->camera_position.z = game_state->camera_position.z * 0.8;
 
-  if (game_state->camera_position.y + player_feet < surface_height)
+  if (!game_state->debug_camera)
   {
-    game_state->camera_velocity.y = 0;
-    game_state->camera_position.y = surface_height - player_feet;
+    if (game_state->camera_position.y + game_state->player_feet < surface_height)
+    {
+      game_state->camera_velocity.y = 0;
+      game_state->camera_position.y = surface_height - game_state->player_feet;
+    }
+  }
+  else
+  {
+    game_state->camera_velocity.y *= 0.8;
   }
 
   // ImGui window

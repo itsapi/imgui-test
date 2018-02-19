@@ -47,6 +47,7 @@ struct GameState
 
   bool init;
   bool capture_mouse;
+  bool debug_camera;
 
   int fps;
   uint64_t game_start_time;
@@ -82,6 +83,7 @@ struct GameState
 
   float player_speed;
   float drag_radians_per_second;
+  float player_feet;
 
   vec3 camera_velocity;
   vec3 camera_position;
