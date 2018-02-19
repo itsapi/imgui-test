@@ -659,9 +659,18 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   // Update camera direction
   //
 
-  vec4 camera_acceleration = {camera_acceleration_direction.x * this_frame_player_horizontal_speed,
+  vec2 camera_horizontal_acceleration = {camera_acceleration_direction.x, camera_acceleration_direction.z};
+  float unnormalised_camera_horizontal_acceleration_length = vec2Length(camera_horizontal_acceleration);
+  if (unnormalised_camera_horizontal_acceleration_length > 0)
+  {
+    camera_horizontal_acceleration = vec2Multiply(camera_horizontal_acceleration, 1.0f / unnormalised_camera_horizontal_acceleration_length);
+  }
+
+  camera_horizontal_acceleration = vec2Multiply(camera_horizontal_acceleration, this_frame_player_horizontal_speed);
+
+  vec4 camera_acceleration = {camera_horizontal_acceleration.x,
                               camera_acceleration_direction.y * this_frame_player_vertical_speed,
-                              camera_acceleration_direction.z * this_frame_player_horizontal_speed};
+                              camera_horizontal_acceleration.y};
 
   camera_acceleration = vec4Multiply(camera_acceleration, game_state->last_frame_total / 1000000.0);
 
