@@ -645,7 +645,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
     if (ImGui::IsKeyDown(SDL_SCANCODE_LSHIFT))
     {
-      this_frame_player_horizontal_speed += 10;
+      this_frame_player_horizontal_speed += 1;
     }
     if (ImGui::IsKeyDown(SDL_SCANCODE_D))
     {
@@ -681,7 +681,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
       }
       if (ImGui::IsKeyDown(SDL_SCANCODE_LSHIFT))
       {
-        this_frame_player_vertical_speed += 10;
+        this_frame_player_vertical_speed += 1;
       }
     }
   }
@@ -715,7 +715,7 @@ main_loop(GameState *game_state, vec2 mouse_delta)
     }
     else if (jump)
     {
-      this_frame_player_vertical_speed += 100;
+      this_frame_player_vertical_speed = 50;
       camera_acceleration_direction.y = 1;
     }
   }
