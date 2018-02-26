@@ -161,7 +161,6 @@ generate_terrain(GameState *game_state)
        ++chunk_position.y)
   {
     TerrainChunk &terrain_chunk = get_terrain_chunk(game_state, chunk_position);
-    get_terrain_chunk(game_state, chunk_position);
 
     vec2 translation;
     for (translation.x = 0;
@@ -182,16 +181,22 @@ generate_terrain(GameState *game_state)
       get_height_from_chunk(terrain_chunk, translation) = terrain_offset;
     }
   }
+}
 
-  printf("Terrain generated\n");
+
+vec2
+get_chunk_position(vec2 position)
+{
+  vec2 chunk_position = vec2Multiply(position, 1.0/CHUNK_SIZE);
+  chunk_position = {floor(chunk_position.x), floor(chunk_position.y)};
+  return chunk_position;
 }
 
 
 float
 get_terrain_height_for_global_position(GameState *game_state, vec2 position)
 {
-  vec2 chunk_position = vec2Multiply(position, 1.0/CHUNK_SIZE);
-  chunk_position = {floorf(chunk_position.x), floorf(chunk_position.y)};
+  vec2 chunk_position = get_chunk_position(position);
   vec2 chunk_offset = vec2Subtract(position, vec2Multiply(chunk_position, CHUNK_SIZE));
 
   return get_height_from_chunk(get_terrain_chunk(game_state, chunk_position), chunk_offset);
@@ -236,7 +241,11 @@ render_window(GameState *game_state, float surface_height)
 {
   if (ImGui::Begin("Render parameters"))
   {
+
     ImGui::Value("Surface Height", surface_height);
+
+    vec2 chunk_position = get_chunk_position({game_state->camera_position.x, game_state->camera_position.z});
+    ImGui::Text("Chunk position: %f  %f", chunk_position.x, chunk_position.y);
 
     ImGui::DragInt("FPS", &game_state->fps, 1, 1, 120);
     ImGui::Value("Last Frame Delta", game_state->last_frame_delta);
@@ -779,6 +788,33 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   render_window(game_state, surface_height);
 
+  // Generate new chunks
+  //
+
+  bool regenerate = false;
+
+  vec2 position = {game_state->camera_position.x, game_state->camera_position.z};
+  vec2 chunk_position = get_chunk_position(position);
+
+  if (chunk_position.x < -floor(game_state->current_terrain_dim.x*0.5) ||
+      chunk_position.x >= floor(game_state->current_terrain_dim.x*0.5))
+  {
+    game_state->user_terrain_dim.x = game_state->current_terrain_dim.x + 1;
+    regenerate = true;
+  }
+
+  if (chunk_position.y < -floor(game_state->current_terrain_dim.y*0.5) ||
+      chunk_position.y >= floor(game_state->current_terrain_dim.y*0.5))
+  {
+    game_state->user_terrain_dim.y = game_state->current_terrain_dim.y + 1;
+    regenerate = true;
+  }
+
+  if (regenerate)
+  {
+    generate_terrain(game_state);
+  }
+
   // Create world, view, projection matrices
   //
 
@@ -908,7 +944,6 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   float bounces_per_us = game_state->bounces_per_second / 1000000.0;
 
-  vec2 chunk_position;
   for (chunk_position.x = -floor(game_state->current_terrain_dim.x*0.5);
        chunk_position.x < floor(game_state->current_terrain_dim.x*0.5);
        ++chunk_position.x)
