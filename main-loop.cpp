@@ -153,11 +153,11 @@ generate_terrain(GameState *game_state)
   game_state->current_terrain_dim = game_state->user_terrain_dim;
 
   vec2 chunk_position;
-  for (chunk_position.x = -floor(game_state->current_terrain_dim.x*0.5);
-       chunk_position.x < floor(game_state->current_terrain_dim.x*0.5);
+  for (chunk_position.x = -floorf(game_state->current_terrain_dim.x*0.5);
+       chunk_position.x < floorf(game_state->current_terrain_dim.x*0.5);
        ++chunk_position.x)
-  for (chunk_position.y = -floor(game_state->current_terrain_dim.y*0.5);
-       chunk_position.y < floor(game_state->current_terrain_dim.y*0.5);
+  for (chunk_position.y = -floorf(game_state->current_terrain_dim.y*0.5);
+       chunk_position.y < floorf(game_state->current_terrain_dim.y*0.5);
        ++chunk_position.y)
   {
     TerrainChunk &terrain_chunk = get_terrain_chunk(game_state, chunk_position);
@@ -188,7 +188,7 @@ vec2
 get_chunk_position(vec2 position)
 {
   vec2 chunk_position = vec2Multiply(position, 1.0/CHUNK_SIZE);
-  chunk_position = {floor(chunk_position.x), floor(chunk_position.y)};
+  chunk_position = {floorf(chunk_position.x), floorf(chunk_position.y)};
   return chunk_position;
 }
 
@@ -796,15 +796,15 @@ main_loop(GameState *game_state, vec2 mouse_delta)
   vec2 position = {game_state->camera_position.x, game_state->camera_position.z};
   vec2 chunk_position = get_chunk_position(position);
 
-  if (chunk_position.x < -floor(game_state->current_terrain_dim.x*0.5) ||
-      chunk_position.x >= floor(game_state->current_terrain_dim.x*0.5))
+  if (chunk_position.x < -floorf(game_state->current_terrain_dim.x*0.5) ||
+      chunk_position.x >= floorf(game_state->current_terrain_dim.x*0.5))
   {
     game_state->user_terrain_dim.x = game_state->current_terrain_dim.x + 1;
     regenerate = true;
   }
 
-  if (chunk_position.y < -floor(game_state->current_terrain_dim.y*0.5) ||
-      chunk_position.y >= floor(game_state->current_terrain_dim.y*0.5))
+  if (chunk_position.y < -floorf(game_state->current_terrain_dim.y*0.5) ||
+      chunk_position.y >= floorf(game_state->current_terrain_dim.y*0.5))
   {
     game_state->user_terrain_dim.y = game_state->current_terrain_dim.y + 1;
     regenerate = true;
@@ -944,11 +944,11 @@ main_loop(GameState *game_state, vec2 mouse_delta)
 
   float bounces_per_us = game_state->bounces_per_second / 1000000.0;
 
-  for (chunk_position.x = -floor(game_state->current_terrain_dim.x*0.5);
-       chunk_position.x < floor(game_state->current_terrain_dim.x*0.5);
+  for (chunk_position.x = -floorf(game_state->current_terrain_dim.x*0.5);
+       chunk_position.x < floorf(game_state->current_terrain_dim.x*0.5);
        ++chunk_position.x)
-  for (chunk_position.y = -floor(game_state->current_terrain_dim.y*0.5);
-       chunk_position.y < floor(game_state->current_terrain_dim.y*0.5);
+  for (chunk_position.y = -floorf(game_state->current_terrain_dim.y*0.5);
+       chunk_position.y < floorf(game_state->current_terrain_dim.y*0.5);
        ++chunk_position.y)
   {
     TerrainChunk &terrain_chunk = get_terrain_chunk(game_state, chunk_position);
